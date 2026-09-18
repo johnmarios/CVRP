@@ -1,0 +1,35 @@
+{
+    "vehicle_types": {
+
+        "motorcycle": {
+            "capacity": 4,
+            "fixed_cost": 5.0,
+            "cost_per_distance": 0.35,
+            "cost_per_time": 0.10,
+            "travel_time_factor": 0.85,
+            "start_time": 0.0,
+            "end_time": 300.0,
+            "max_route_duration": 300.0
+        },
+        "van": {
+            "capacity": 12,
+            "fixed_cost": 15.0,
+            "cost_per_distance": 0.6,
+            "cost_per_time": 0.10,
+            "travel_time_factor": 1.0,
+            "start_time": 0.0,
+            "end_time": 300.0,
+            "max_route_duration": 300.0
+        },
+        "truck": {
+            "capacity": 24,
+            "fixed_cost": 32.0,
+            "cost_per_distance": 0.95,
+            "cost_per_time": 0.10,
+            "travel_time_factor": 1.2,
+            "start_time": 0.0,
+            "end_time": 300.0,
+            "max_route_duration": 300.0
+        }
+    }
+}

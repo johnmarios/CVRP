@@ -1,0 +1,116 @@
+{
+  "name": "Athens VRP scenario",
+  "description": "Two depots, twelve customers, heterogeneous vehicles, capacities, service times, time windows, and directed road-network data.",
+  "use_vehicle_travel_time_factors": true,
+  "depots": {
+    "D1": {
+      "name": "Votanikos",
+      "coordinates": [23.6945, 37.98265]
+    },
+    "D2": {
+      "name": "Goudi",
+      "coordinates": [23.7735, 37.9845]
+    }
+  },
+  "customers": {
+    "1": {
+      "name": "Syntagma Square",
+      "coordinates": [23.7348, 37.9755],
+      "demand": 3,
+      "service_time": 8
+    },
+    "2": {
+      "name": "Omonia Square",
+      "coordinates": [23.7275, 37.9842],
+      "demand": 4,
+      "service_time": 10
+    },
+    "3": {
+      "name": "Acropolis Museum",
+      "coordinates": [23.7285, 37.9684],
+      "demand": 5,
+      "service_time": 12
+    },
+    "4": {
+      "name": "Panathenaic Stadium",
+      "coordinates": [23.7411, 37.9682],
+      "demand": 3,
+      "service_time": 8
+    },
+    "5": {
+      "name": "National Archaeological Museum",
+      "coordinates": [23.7327, 37.989],
+      "demand": 4,
+      "service_time": 10
+    },
+    "6": {
+      "name": "Evangelismos",
+      "coordinates": [23.7476, 37.9763],
+      "demand": 5,
+      "service_time": 10
+    },
+    "7": {
+      "name": "Ampelokipi",
+      "coordinates": [23.757, 37.9873],
+      "demand": 6,
+      "service_time": 12
+    },
+    "8": {
+      "name": "Kypseli Square",
+      "coordinates": [23.7388, 38.0019],
+      "demand": 4,
+      "service_time": 10
+    },
+    "9": {
+      "name": "Neos Kosmos",
+      "coordinates": [23.7283, 37.9575],
+      "demand": 3,
+      "service_time": 8
+    },
+    "10": {
+      "name": "Kallithea Square",
+      "coordinates": [23.7009, 37.9607],
+      "demand": 4,
+      "service_time": 10
+    },
+    "11": {
+      "name": "Petralona",
+      "coordinates": [23.7092, 37.9689],
+      "demand": 5,
+      "service_time": 10
+    },
+    "12": {
+      "name": "Technopolis Gazi",
+      "coordinates": [23.7137, 37.9786],
+      "demand": 4,
+      "service_time": 8
+    }
+  },
+  "vehicle_info": {
+    "motorcycle": {
+      "depots": {"D1": 1, "D2": 1}
+    },
+    "van": {
+      "depots": {"D1": 1, "D2": 1}
+    },
+    "truck": {
+      "depots": {"D1": 1, "D2": 1}
+    }
+  },
+  "horizon": 300.0,
+  "use_time_constraints": true,
+  "time_windows": {
+    "1": [30, 80],
+    "2": [0, 60],
+    "3": [50, 120],
+    "4": [70, 140],
+    "5": [80, 150],
+    "6": [40, 100],
+    "7": [80, 160],
+    "8": [60, 130],
+    "9": [110, 190],
+    "10": [90, 160],
+    "11": [30, 100],
+    "12": [0, 50]
+  }
+}

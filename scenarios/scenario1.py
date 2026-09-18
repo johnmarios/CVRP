@@ -1,0 +1,519 @@
+from copy import deepcopy
+from pathlib import Path
+import sys
+import time
+
+import pulp
+
+
+PROJECT_DIRECTORY = Path(__file__).resolve().parents[1]
+if str(PROJECT_DIRECTORY) not in sys.path:
+    sys.path.insert(0, str(PROJECT_DIRECTORY))
+
+from diagnostics import capacity_precheck
+from model import build_model, get_d_ij, get_t_ijk
+from tools import (
+    extract_route,
+    format_loads,
+    format_routes,
+    get_output_directory,
+    lp_relaxation,
+    make_text_table,
+    readjson,
+)
+from visualization import plot_capacity_results, plot_scenario1_comparison
+
+
+CAPACITIES = [8, 10, 11, 12, 16, 21, 22]
+TEST_CAPACITY = 11
+
+
+# INPUT DATA
+
+def load_inputs():
+    """Load the two demand scenarios and the common vehicle data."""
+    baseline = readjson("data/scenario1/baseline.json")
+    concentrated = readjson("data/scenario1/concentrated.json")
+    vehicle_types = readjson("data/vehicles.json")["vehicle_types"]
+    return baseline, concentrated, vehicle_types
+
+
+def get_demands(scenario):
+    """Return the customer demands of a scenario."""
+    return [customer["demand"] for customer in scenario["customers"].values()]
+
+
+def get_number_of_vans(scenario):
+    """Return the number of available vans."""
+    return sum(scenario["vehicle_info"]["van"]["depots"].values())
+
+
+def prepare_case(scenario, vehicle_types, capacity):
+    """Copy the input data and change only the van capacity."""
+    scenario = deepcopy(scenario)
+    vehicle_types = deepcopy(vehicle_types)
+    vehicle_types["van"]["capacity"] = capacity
+    return scenario, vehicle_types
+
+
+
+# SOLVE ONE CAPACITY CASE
+
+def create_result(capacity, demands, number_of_vans, check):
+    """Create an empty result dictionary with all common information."""
+    return {
+        "capacity": capacity,
+        "total_demand": sum(demands),
+        "available_vehicles": number_of_vans,
+        "fleet_capacity": number_of_vans * capacity,
+        "aggregate_lower_bound": check["aggregate_lower_bound"],
+        "large_customer_lower_bound": check["large_customer_lower_bound"],
+        "capacity_lower_bound": check["capacity_lower_bound"],
+        "status": "Infeasible" if check["infeasible"] else "Not solved",
+        "feedback": check["reason"],
+        "objective": None,
+        "fixed_cost": None,
+        "distance_cost": None,
+        "time_cost": None,
+        "active_vehicles": None,
+        "active_capacity": None,
+        "utilization_percent": None,
+        "total_distance": None,
+        "total_travel_time": None,
+        "runtime_seconds": 0.0,
+        "routes": {},
+        "loads": {},
+    }
+
+
+def add_symmetry_breaking(model, variables):
+    """Force identical vans to be activated in a fixed order, by adding constraints z_1 >= z_2 >= z_3 ..."""
+    vehicles = sorted(variables["z"])
+    for first, second in zip(vehicles[:-1], vehicles[1:]):
+        model += variables["z"][first] >= variables["z"][second]
+
+
+def solve_model(model):
+    """Solve a model with CBC and return its status and runtime."""
+    start = time.perf_counter()
+    model.solve(pulp.PULP_CBC_CMD(msg=False))
+    runtime = round(time.perf_counter() - start, 4)
+    status = pulp.LpStatus[model.status]
+    return status, runtime
+
+
+def extract_routes_and_loads(scenario, variables):
+    """Extract the route and carried load of every active vehicle."""
+    routes = {}
+    loads = {}
+
+    for vehicle in sorted(variables["z"]):
+        if pulp.value(variables["z"][vehicle]) < 0.5:
+            continue
+
+        routes[vehicle] = extract_route(vehicle, variables["x"], len(scenario["customers"]),)
+        loads[vehicle] = sum(scenario["customers"][customer]["demand"]
+            for customer in scenario["customers"]
+            if pulp.value(variables["y"][customer, vehicle]) > 0.5
+        )
+
+    return routes, loads
+
+
+def calculate_route_costs(scenario, vehicle_types, routes):
+    """Calculate distance, time and the three cost components."""
+    fixed_cost = 0.0
+    distance_cost = 0.0
+    time_cost = 0.0
+    total_distance = 0.0
+    total_travel_time = 0.0
+
+    for vehicle, route in routes.items():
+        vehicle_type = vehicle.split("_")[0]
+        vehicle_data = vehicle_types[vehicle_type]
+        fixed_cost += vehicle_data["fixed_cost"]
+
+        for first, second in zip(route[:-1], route[1:]):
+            distance = get_d_ij(scenario, first, second)
+            travel_time = get_t_ijk(scenario, vehicle_types, first, second, vehicle)
+            total_distance += distance
+            total_travel_time += travel_time
+            distance_cost += vehicle_data["cost_per_distance"] * distance
+            time_cost += vehicle_data["cost_per_time"] * travel_time
+
+    return {
+        "fixed_cost": round(fixed_cost, 4),
+        "distance_cost": round(distance_cost, 4),
+        "time_cost": round(time_cost, 4),
+        "total_distance": round(total_distance, 4),
+        "total_travel_time": round(total_travel_time, 4),
+    }
+
+
+def complete_result(result, model, scenario, vehicle_types, variables):
+    """Add routes, loads and cost information to an optimal result."""
+    routes, loads = extract_routes_and_loads(scenario, variables)
+    costs = calculate_route_costs(scenario, vehicle_types, routes)
+    active_capacity = sum(vehicle_types[vehicle.split("_")[0]]["capacity"] for vehicle in routes)
+
+    objective = pulp.value(model.objective)
+    util_percent = 100 * result["total_demand"] / active_capacity,
+
+    result.update(costs)
+    result.update(
+        {
+            "objective": round(objective, 4),
+            "active_vehicles": len(routes),
+            "active_capacity": active_capacity,
+            "utilization_percent": round(util_percent, 2),
+            "routes": routes,
+            "loads": loads,
+        }
+    )
+    return result
+
+
+def solve_capacity(base_scenario, base_vehicle_types, capacity):
+    """Run the complete workflow for one capacity value."""
+
+    # prepare scenario for the requested Q
+    scenario, vehicle_types = prepare_case(base_scenario, base_vehicle_types, capacity)
+    demands = get_demands(scenario)
+    number_of_vans = get_number_of_vans(scenario)
+
+    # run some capacity checks for infeasibility before calling the solver
+    check = capacity_precheck(demands, number_of_vans, capacity)
+
+    # create a result dictionary with all common information
+    result = create_result(capacity, demands, number_of_vans, check)
+
+    # A failed necessary condition proves infeasibility without a solver call.
+    if check["infeasible"]:
+        return result
+
+    model, variables = build_model(scenario, vehicle_types)
+    add_symmetry_breaking(model, variables)
+    result["status"], result["runtime_seconds"] = solve_model(model)
+
+    if result["status"] == "Optimal":
+        complete_result(result, model, scenario, vehicle_types, variables)
+
+    # in case of infeasibility 
+    return result
+
+
+#EXPERIMENTS
+
+def run_capacity_experiment(scenario, vehicle_types):
+    """Solve the baseline scenario for every selected capacity."""
+    results = []
+
+    for capacity in CAPACITIES:
+        result = solve_capacity(scenario, vehicle_types, capacity)
+        results.append(result)
+
+    return results
+
+
+def find_capacity_result(results, capacity):
+    """Return the capacity result that corresponds to Q, by extracting it from the results list."""
+    return next(result for result in results if result["capacity"] == capacity)
+
+
+def run_demand_experiment(baseline_result, concentrated_scenario, vehicle_types,):
+    """Compare baseline and concentrated demands at Q=11."""
+    concentrated_result = solve_capacity(concentrated_scenario, vehicle_types, TEST_CAPACITY,)
+
+    # combine the two results in one list for the report and plots
+    demand_results = [
+        {**baseline_result, "scenario": "Baseline"},
+        {**concentrated_result, "scenario": "Concentrated"},
+    ]
+    return demand_results, concentrated_result
+
+
+def calculate_lp_gap(milp_result, lp_result):
+    """Return the percentage gap when both problems are optimal."""
+
+    if milp_result["status"] != "Optimal" or lp_result["status"] != "Optimal":
+        return None
+
+    return round(100 * (milp_result["objective"] - lp_result["objective"]) / milp_result["objective"], 2,)
+
+
+def create_relaxation_row(name, short_name, milp_result, lp_result):
+    """Combine the MILP and LP results of one case in one table row."""
+    return {
+        "case": name,
+        "short_name": short_name,
+        "milp_status": milp_result["status"],
+        "milp_objective": milp_result["objective"],
+        "lp_status": lp_result["status"],
+        "lp_objective": lp_result["objective"],
+        "gap_percent": calculate_lp_gap(milp_result, lp_result),
+        "sum_z": lp_result["sum_z"],
+        "fractional_x": lp_result["fractional_x"],
+        "fractional_y": lp_result["fractional_y"],
+        "fractional_z": lp_result["fractional_z"],
+        "fractional_examples": lp_result["fractional_examples"],
+    }
+
+
+def run_relaxation_experiment(baseline_scenario, concentrated_scenario, vehicle_types, capacity_results, concentrated_result,):
+    """Compare three MILP cases with their matching LP relaxations."""
+    cases = [
+        (
+            "Baseline Q=11", "Baseline\nQ=11", baseline_scenario, 11,
+            find_capacity_result(capacity_results, 11),
+        ),
+        (
+            "Baseline Q=12", "Baseline\nQ=12", baseline_scenario, 12,
+            find_capacity_result(capacity_results, 12),
+        ),
+        (
+            "Concentrated Q=11", "Concentrated\nQ=11",
+            concentrated_scenario, 11, concentrated_result,
+        ),
+    ]
+
+    results = []
+    for name, short_name, scenario, capacity, milp_result in cases:
+        lp_result = lp_relaxation(scenario, vehicle_types, capacity)
+        results.append(
+            create_relaxation_row(
+                name, short_name, milp_result, lp_result
+            )
+        )
+
+    return results
+
+
+# TEXT REPORT
+
+def build_setup_section(baseline, concentrated, number_of_vans):
+    """Describe the common experimental setup."""
+    return "\n".join(
+        [
+            "EXPERIMENTAL SETUP",
+            "------------------",
+            f"Customers: {len(baseline['customers'])}",
+            f"Available vehicles: {number_of_vans} identical vans",
+            f"Baseline demands: {', '.join(map(str, get_demands(baseline)))}",
+            f"Concentrated demands: {', '.join(map(str, get_demands(concentrated)))}",
+            f"Total demand: {sum(get_demands(baseline))}",
+            f"Capacity values: {', '.join(map(str, CAPACITIES))}",
+        ]
+    )
+
+
+def build_capacity_section(capacity_results):
+    """Create the capacity table, routes and mathematical observations."""
+    columns = [
+        ("capacity", "Q"),
+        ("fleet_capacity", "Fleet cap."),
+        ("capacity_lower_bound", "Capacity LB"),
+        ("status", "Status"),
+        ("active_vehicles", "Vehicles"),
+        ("utilization_percent", "Util. (%)"),
+        ("objective", "Total cost"),
+        ("total_distance", "Distance"),
+    ]
+    cost_columns = [
+        ("capacity", "Q"),
+        ("fixed_cost", "Fixed cost"),
+        ("distance_cost", "Distance cost"),
+        ("time_cost", "Time cost"),
+        ("objective", "Total cost"),
+    ]
+
+    q11 = find_capacity_result(capacity_results, 11)
+    q22 = find_capacity_result(capacity_results, 22)
+    cost_reduction = 100 * (q11["objective"] - q22["objective"]) / q11["objective"]
+    distance_reduction = 100 * (
+        q11["total_distance"] - q22["total_distance"]
+    ) / q11["total_distance"]
+
+    return f"""A. CAPACITY SENSITIVITY
+-----------------------
+{make_text_table(capacity_results, columns)}
+
+Representative routes
+Q=11 routes: {format_routes(q11['routes'])}
+Q=11 loads:  {format_loads(q11['loads'])}
+
+Q=22 routes: {format_routes(q22['routes'])}
+Q=22 loads:  {format_loads(q22['loads'])}
+
+Cost decomposition
+{make_text_table([q11, q22], cost_columns)}
+
+Mathematical observations
+1. Q=8 and Q=10 require at least 3 vans, but only 2 are available.
+2. Q=11 is the smallest tested feasible capacity.
+3. For 11 <= Q < 22, two routes are still required and the optimal cost is unchanged.
+4. At Q=22 one van is sufficient. Cost falls by {cost_reduction:.2f}% and distance by only {distance_reduction:.2f}%."""
+
+
+def build_demand_section(demand_results):
+    """Create the demand-distribution table and infeasibility certificate."""
+    columns = [
+        ("scenario", "Profile"),
+        ("aggregate_lower_bound", "Aggregate LB"),
+        ("large_customer_lower_bound", "Large-item LB"),
+        ("capacity_lower_bound", "Overall LB"),
+        ("status", "Status"),
+        ("objective", "Total cost"),
+    ]
+    concentrated = demand_results[1]
+
+    return f"""B. DEMAND DISTRIBUTION AT Q=11
+------------------------------
+{make_text_table(demand_results, columns)}
+
+Infeasibility certificate
+{concentrated['feedback']}"""
+
+
+def build_relaxation_section(relaxation_results):
+    """Create the MILP-LP table and show representative fractional values."""
+    columns = [
+        ("case", "Case"),
+        ("milp_status", "MILP status"),
+        ("milp_objective", "MILP obj."),
+        ("lp_status", "LP status"),
+        ("lp_objective", "LP bound"),
+        ("gap_percent", "Gap (%)"),
+        ("sum_z", "Sum z"),
+        ("fractional_x", "Frac. x"),
+        ("fractional_y", "Frac. y"),
+        ("fractional_z", "Frac. z"),
+    ]
+    examples = "\n".join(
+        f"{result['case']}: {result['fractional_examples']}"
+        for result in relaxation_results
+    )
+
+    return f"""C. MILP AND LP RELAXATION
+--------------------------
+{make_text_table(relaxation_results, columns)}
+
+Representative fractional variables
+{examples}"""
+
+
+def build_report(
+    baseline,
+    concentrated,
+    capacity_results,
+    demand_results,
+    relaxation_results,
+):
+    """Join the setup and the three experiment sections in one report."""
+    title = (
+        "SCENARIO 1 - CAPACITY, DEMAND DISTRIBUTION AND LP RELAXATION\n"
+        "============================================================"
+    )
+    sections = [
+        title,
+        build_setup_section(
+            baseline, concentrated, get_number_of_vans(baseline)
+        ),
+        build_capacity_section(capacity_results),
+        build_demand_section(demand_results),
+        build_relaxation_section(relaxation_results),
+    ]
+    return "\n\n".join(sections) + "\n"
+
+
+# -----------------------------------------------------------------------------
+# 5. OUTPUTS
+# -----------------------------------------------------------------------------
+
+def save_report(report, output_directory):
+    """Save and return the path of the single text report."""
+    report_file = output_directory / "scenario1_results.txt"
+    report_file.write_text(report, encoding="utf-8")
+    return report_file
+
+
+def save_plots(
+    baseline,
+    concentrated,
+    capacity_results,
+    relaxation_results,
+    output_directory,
+    show_plots,
+):
+    """Save the two plots of Scenario 1 and return their paths."""
+    capacity_plot = output_directory / "capacity_sensitivity_plot.png"
+    plot_capacity_results(
+        capacity_results,
+        CAPACITIES,
+        capacity_plot,
+        show=show_plots,
+    )
+
+    demand_profiles = {
+        "Baseline": get_demands(baseline),
+        "Concentrated": get_demands(concentrated),
+    }
+    comparison_plot = output_directory / "demand_and_relaxation_plot.png"
+    plot_scenario1_comparison(
+        demand_profiles,
+        TEST_CAPACITY,
+        relaxation_results,
+        comparison_plot,
+        show=show_plots,
+    )
+    return capacity_plot, comparison_plot
+
+
+
+# MAIN WORKFLOW
+
+def main():
+    """Run the experiments and save the presentation-ready outputs."""
+    show_plots = "--show" in sys.argv
+
+    # set up the input data and output directory
+    baseline, concentrated, vehicle_types = load_inputs()
+    output_directory = get_output_directory("scenario1")
+
+    print("Running capacity sensitivity...")
+    capacity_results = run_capacity_experiment(baseline, vehicle_types)
+
+    # get the result from the list 
+    baseline_q11 = find_capacity_result(capacity_results, 11)
+
+    # demand results for Q=11 (baseline and concentrated)
+    demand_results, concentrated_q11 = run_demand_experiment(baseline_q11, concentrated, vehicle_types,)
+
+    # relaxation results for three cases
+    print("Running LP relaxations...")
+    relaxation_results = run_relaxation_experiment(baseline, concentrated, vehicle_types, capacity_results, concentrated_q11,)
+
+    report = build_report(
+        baseline,
+        concentrated,
+        capacity_results,
+        demand_results,
+        relaxation_results,
+    )
+    report_file = save_report(report, output_directory)
+    capacity_plot, comparison_plot = save_plots(
+        baseline,
+        concentrated,
+        capacity_results,
+        relaxation_results,
+        output_directory,
+        show_plots,
+    )
+
+    print("\n" + report)
+    print(f"Results saved in: {report_file}")
+    print(f"Capacity plot saved in: {capacity_plot}")
+    print(f"Comparison plot saved in: {comparison_plot}")
+
+
+if __name__ == "__main__":
+    main()

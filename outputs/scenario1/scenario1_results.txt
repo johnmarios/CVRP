@@ -1,0 +1,73 @@
+SCENARIO 1 - CAPACITY, DEMAND DISTRIBUTION AND LP RELAXATION
+============================================================
+
+EXPERIMENTAL SETUP
+------------------
+Customers: 6
+Available vehicles: 2 identical vans
+Baseline demands: 4, 4, 3, 4, 3, 4
+Concentrated demands: 6, 6, 6, 2, 1, 1
+Total demand: 22
+Capacity values: 8, 10, 11, 12, 16, 21, 22
+
+A. CAPACITY SENSITIVITY
+-----------------------
++----+------------+-------------+------------+----------+-----------+------------+----------+
+| Q  | Fleet cap. | Capacity LB | Status     | Vehicles | Util. (%) | Total cost | Distance |
++----+------------+-------------+------------+----------+-----------+------------+----------+
+| 8  | 16         | 3           | Infeasible | -        | -         | -          | -        |
+| 10 | 20         | 3           | Infeasible | -        | -         | -          | -        |
+| 11 | 22         | 2           | Optimal    | 2        | 100.0     | 58.8693    | 26.2448  |
+| 12 | 24         | 2           | Optimal    | 2        | 91.67     | 58.8693    | 26.2448  |
+| 16 | 32         | 2           | Optimal    | 2        | 68.75     | 58.8693    | 26.2448  |
+| 21 | 42         | 2           | Optimal    | 2        | 52.38     | 58.8693    | 26.2448  |
+| 22 | 44         | 1           | Optimal    | 1        | 100.0     | 43.5915    | 25.9922  |
++----+------------+-------------+------------+----------+-----------+------------+----------+
+
+Representative routes
+Q=11 routes: van_D0_1: D0 -> 4 -> 5 -> 6 -> D0; van_D0_2: D0 -> 3 -> 2 -> 1 -> D0
+Q=11 loads:  van_D0_1: 11; van_D0_2: 11
+
+Q=22 routes: van_D0_1: D0 -> 3 -> 2 -> 1 -> 6 -> 5 -> 4 -> D0
+Q=22 loads:  van_D0_1: 22
+
+Cost decomposition
++----+------------+---------------+-----------+------------+
+| Q  | Fixed cost | Distance cost | Time cost | Total cost |
++----+------------+---------------+-----------+------------+
+| 11 | 30.0       | 15.7469       | 13.1224   | 58.8693    |
+| 22 | 15.0       | 15.5953       | 12.9961   | 43.5915    |
++----+------------+---------------+-----------+------------+
+
+Mathematical observations
+1. Q=8 and Q=10 require at least 3 vans, but only 2 are available.
+2. Q=11 is the smallest tested feasible capacity.
+3. For 11 <= Q < 22, two routes are still required and the optimal cost is unchanged.
+4. At Q=22 one van is sufficient. Cost falls by 25.95% and distance by only 0.96%.
+
+B. DEMAND DISTRIBUTION AT Q=11
+------------------------------
++--------------+--------------+---------------+------------+------------+------------+
+| Profile      | Aggregate LB | Large-item LB | Overall LB | Status     | Total cost |
++--------------+--------------+---------------+------------+------------+------------+
+| Baseline     | 2            | 0             | 2          | Optimal    | 58.8693    |
+| Concentrated | 2            | 3             | 3          | Infeasible | -          |
++--------------+--------------+---------------+------------+------------+------------+
+
+Infeasibility certificate
+3 customers have demand greater than Q/2=5.5; they cannot share a vehicle, but only 2 vehicles are available.
+
+C. MILP AND LP RELAXATION
+--------------------------
++-------------------+-------------+-----------+-----------+-----------+---------+----------+---------+---------+---------+
+| Case              | MILP status | MILP obj. | LP status | LP bound  | Gap (%) | Sum z    | Frac. x | Frac. y | Frac. z |
++-------------------+-------------+-----------+-----------+-----------+---------+----------+---------+---------+---------+
+| Baseline Q=11     | Optimal     | 58.8693   | Optimal   | 58.22254  | 1.1     | 2.0      | 8       | 8       | 0       |
+| Baseline Q=12     | Optimal     | 58.8693   | Optimal   | 54.449825 | 7.51    | 1.833333 | 19      | 12      | 1       |
+| Concentrated Q=11 | Infeasible  | -         | Optimal   | 58.22254  | -       | 2.0      | 8       | 8       | 0       |
++-------------------+-------------+-----------+-----------+-----------+---------+----------+---------+---------+---------+
+
+Representative fractional variables
+Baseline Q=11: y[1,van_D0_1]=0.2667; y[2,van_D0_1]=0.2667; y[4,van_D0_1]=0.6952; x[2,1,van_D0_1]=0.2667; x[5,4,van_D0_1]=0.6952; x[4,5,van_D0_1]=0.6952
+Baseline Q=12: y[1,van_D0_1]=0.2333; y[2,van_D0_1]=0.1667; y[3,van_D0_1]=0.0667; z[van_D0_1]=0.8333; x[6,D0,van_D0_1]=0.8333; x[2,1,van_D0_1]=0.1667; x[5,4,van_D0_1]=0.6952
+Concentrated Q=11: y[1,van_D0_1]=0.3782; y[2,van_D0_1]=0.3782; y[4,van_D0_1]=0.1538; x[2,1,van_D0_1]=0.3782; x[5,4,van_D0_1]=0.1538; x[4,5,van_D0_1]=0.1538
