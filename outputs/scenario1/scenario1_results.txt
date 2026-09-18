@@ -17,18 +17,18 @@ A. CAPACITY SENSITIVITY
 +----+------------+-------------+------------+----------+-----------+------------+----------+
 | 8  | 16         | 3           | Infeasible | -        | -         | -          | -        |
 | 10 | 20         | 3           | Infeasible | -        | -         | -          | -        |
-| 11 | 22         | 2           | Optimal    | 2        | 100.0     | 58.8693    | 26.2448  |
-| 12 | 24         | 2           | Optimal    | 2        | 91.67     | 58.8693    | 26.2448  |
-| 16 | 32         | 2           | Optimal    | 2        | 68.75     | 58.8693    | 26.2448  |
-| 21 | 42         | 2           | Optimal    | 2        | 52.38     | 58.8693    | 26.2448  |
-| 22 | 44         | 1           | Optimal    | 1        | 100.0     | 43.5915    | 25.9922  |
+| 11 | 22         | 2           | Optimal    | 2        | 100       | 58.8693    | 26.2448  |
+| 12 | 24         | 2           | Optimal    | 2        | 91        | 58.8693    | 26.2448  |
+| 16 | 32         | 2           | Optimal    | 2        | 68        | 58.8693    | 26.2448  |
+| 21 | 42         | 2           | Optimal    | 2        | 52        | 58.8693    | 26.2448  |
+| 22 | 44         | 1           | Optimal    | 1        | 100       | 43.5915    | 25.9922  |
 +----+------------+-------------+------------+----------+-----------+------------+----------+
 
 Representative routes
 Q=11 routes: van_D0_1: D0 -> 4 -> 5 -> 6 -> D0; van_D0_2: D0 -> 3 -> 2 -> 1 -> D0
 Q=11 loads:  van_D0_1: 11; van_D0_2: 11
 
-Q=22 routes: van_D0_1: D0 -> 3 -> 2 -> 1 -> 6 -> 5 -> 4 -> D0
+Q=22 routes: van_D0_1: D0 -> 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> D0
 Q=22 loads:  van_D0_1: 22
 
 Cost decomposition
@@ -54,7 +54,7 @@ B. DEMAND DISTRIBUTION AT Q=11
 | Concentrated | 2            | 3             | 3          | Infeasible | -          |
 +--------------+--------------+---------------+------------+------------+------------+
 
-Infeasibility certificate
+Infeasibility feedback
 3 customers have demand greater than Q/2=5.5; they cannot share a vehicle, but only 2 vehicles are available.
 
 C. MILP AND LP RELAXATION
@@ -68,6 +68,6 @@ C. MILP AND LP RELAXATION
 +-------------------+-------------+-----------+-----------+-----------+---------+----------+---------+---------+---------+
 
 Representative fractional variables
-Baseline Q=11: y[1,van_D0_1]=0.2667; y[2,van_D0_1]=0.2667; y[4,van_D0_1]=0.6952; x[2,1,van_D0_1]=0.2667; x[5,4,van_D0_1]=0.6952; x[4,5,van_D0_1]=0.6952
-Baseline Q=12: y[1,van_D0_1]=0.2333; y[2,van_D0_1]=0.1667; y[3,van_D0_1]=0.0667; z[van_D0_1]=0.8333; x[6,D0,van_D0_1]=0.8333; x[2,1,van_D0_1]=0.1667; x[5,4,van_D0_1]=0.6952
-Concentrated Q=11: y[1,van_D0_1]=0.3782; y[2,van_D0_1]=0.3782; y[4,van_D0_1]=0.1538; x[2,1,van_D0_1]=0.3782; x[5,4,van_D0_1]=0.1538; x[4,5,van_D0_1]=0.1538
+Baseline Q=11: y[1,van_D0_1]=0.2667; y[2,van_D0_1]=0.2667; y[4,van_D0_1]=0.6952; x[4,5,van_D0_1]=0.6952; x[1,2,van_D0_1]=0.2667; x[2,1,van_D0_1]=0.2667
+Baseline Q=12: y[1,van_D0_1]=0.2333; y[2,van_D0_1]=0.1667; y[3,van_D0_1]=0.0667; z[van_D0_1]=0.8333; x[4,5,van_D0_1]=0.6952; x[3,1,van_D0_1]=0.0667; x[D0,6,van_D0_1]=0.8333
+Concentrated Q=11: y[1,van_D0_1]=0.3782; y[2,van_D0_1]=0.3782; y[4,van_D0_1]=0.1538; x[4,5,van_D0_1]=0.1538; x[1,2,van_D0_1]=0.3782; x[2,1,van_D0_1]=0.3782

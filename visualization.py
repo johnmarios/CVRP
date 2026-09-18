@@ -85,16 +85,35 @@ def plot_solution(
             zorder=6
         )
 
-    for vehicle, active in variables["z"].items():
-        if pulp.value(active) < 0.5:
-            continue
-
-        route = extract_route(vehicle, variables["x"], len(scenario["customers"]))
-        load = sum(
-            scenario["customers"][customer]["demand"]
-            for customer in scenario["customers"]
-            if pulp.value(variables["y"][customer, vehicle]) > 0.5
+    if "z" in variables:
+        plotted_routes = (
+            (
+                vehicle,
+                extract_route(vehicle, variables["x"], len(scenario["customers"])),
+                sum(
+                    scenario["customers"][customer]["demand"]
+                    for customer in scenario["customers"]
+                    if pulp.value(variables["y"][customer, vehicle]) > 0.5
+                ),
+            )
+            for vehicle, active in variables["z"].items()
+            if pulp.value(active) >= 0.5
         )
+    else:
+        plotted_routes = (
+            (
+                vehicle,
+                route,
+                sum(
+                    scenario["customers"][customer]["demand"]
+                    for customer in route
+                    if customer in scenario["customers"]
+                ),
+            )
+            for vehicle, route in variables.items()
+        )
+
+    for vehicle, route, load in plotted_routes:
         vehicle_type = vehicle.split("_")[0]
         capacity = vehicle_types[vehicle_type]["capacity"]
 
@@ -135,12 +154,15 @@ def plot_solution(
     ax.axis("equal")
     ax.margins(0.22 if show_time_windows else 0.12)
     ax.grid()
-    ax.legend()
+    if ax.get_legend_handles_labels()[0]:
+        ax.legend()
     fig.tight_layout()
 
     output_file = Path(output_file)
     output_file.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(output_file, dpi=180, bbox_inches="tight")
+    output_file.unlink(missing_ok=True)
+    with output_file.open("wb") as image_file:
+        fig.savefig(image_file, format="png", dpi=180, bbox_inches="tight")
 
     if show:
         plt.show()

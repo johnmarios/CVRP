@@ -21,7 +21,7 @@ from tools import (
     make_text_table,
     readjson,
 )
-from visualization import plot_capacity_results, plot_scenario1_comparison
+from visualization import plot_capacity_results, plot_scenario1_comparison, plot_solution
 
 
 CAPACITIES = [8, 10, 11, 12, 16, 21, 22]
@@ -157,7 +157,7 @@ def complete_result(result, model, scenario, vehicle_types, variables):
     active_capacity = sum(vehicle_types[vehicle.split("_")[0]]["capacity"] for vehicle in routes)
 
     objective = pulp.value(model.objective)
-    util_percent = 100 * result["total_demand"] / active_capacity,
+    util_percent = int(100 * result["total_demand"] / active_capacity)
 
     result.update(costs)
     result.update(
@@ -355,7 +355,7 @@ Mathematical observations
 
 
 def build_demand_section(demand_results):
-    """Create the demand-distribution table and infeasibility certificate."""
+    """Create the demand-distribution table and infeasibility feedback."""
     columns = [
         ("scenario", "Profile"),
         ("aggregate_lower_bound", "Aggregate LB"),
@@ -370,7 +370,7 @@ def build_demand_section(demand_results):
 ------------------------------
 {make_text_table(demand_results, columns)}
 
-Infeasibility certificate
+Infeasibility feedback
 {concentrated['feedback']}"""
 
 
@@ -514,6 +514,37 @@ def main():
     print(f"Capacity plot saved in: {capacity_plot}")
     print(f"Comparison plot saved in: {comparison_plot}")
 
+    # plot milp baseline solution for Q=11 and Q=22 and concentrated solution for Q=11
+    plot_solution(
+        baseline,
+        baseline_q11["routes"],
+        vehicle_types,
+        output_directory / "baseline_q11_solution.png",
+        show=show_plots,
+    )
+    plot_solution(
+        concentrated,
+        concentrated_q11["routes"],
+        vehicle_types,
+        output_directory / "concentrated_q11_solution.png",
+        show=show_plots,
+    )
+
+    plot_solution(
+        baseline,
+        find_capacity_result(capacity_results, 22)["routes"],
+        vehicle_types,
+        output_directory / "baseline_q22_solution.png",
+        show=show_plots,
+    )
+
+    plot_solution(
+        concentrated,
+        find_capacity_result(capacity_results, 22)["routes"],
+        vehicle_types,
+        output_directory / "concentrated_q22_solution.png",
+        show=show_plots,
+    )
 
 if __name__ == "__main__":
     main()
