@@ -25,7 +25,7 @@ A. CAPACITY SENSITIVITY
 +----+------------+-------------+------------+----------+-----------+------------+----------+
 
 Representative routes
-Q=11 routes: van_D0_1: D0 -> 4 -> 5 -> 6 -> D0; van_D0_2: D0 -> 3 -> 2 -> 1 -> D0
+Q=11 routes: van_D0_1: D0 -> 6 -> 5 -> 4 -> D0; van_D0_2: D0 -> 3 -> 2 -> 1 -> D0
 Q=11 loads:  van_D0_1: 11; van_D0_2: 11
 
 Q=22 routes: van_D0_1: D0 -> 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> D0
@@ -38,12 +38,6 @@ Cost decomposition
 | 11 | 30.0       | 15.7469       | 13.1224   | 58.8693    |
 | 22 | 15.0       | 15.5953       | 12.9961   | 43.5915    |
 +----+------------+---------------+-----------+------------+
-
-Mathematical observations
-1. Q=8 and Q=10 require at least 3 vans, but only 2 are available.
-2. Q=11 is the smallest tested feasible capacity.
-3. For 11 <= Q < 22, two routes are still required and the optimal cost is unchanged.
-4. At Q=22 one van is sufficient. Cost falls by 25.95% and distance by only 0.96%.
 
 B. DEMAND DISTRIBUTION AT Q=11
 ------------------------------
@@ -68,6 +62,6 @@ C. MILP AND LP RELAXATION
 +-------------------+-------------+-----------+-----------+-----------+---------+----------+---------+---------+---------+
 
 Representative fractional variables
-Baseline Q=11: y[1,van_D0_1]=0.2667; y[2,van_D0_1]=0.2667; y[4,van_D0_1]=0.6952; x[4,5,van_D0_1]=0.6952; x[1,2,van_D0_1]=0.2667; x[2,1,van_D0_1]=0.2667
-Baseline Q=12: y[1,van_D0_1]=0.2333; y[2,van_D0_1]=0.1667; y[3,van_D0_1]=0.0667; z[van_D0_1]=0.8333; x[4,5,van_D0_1]=0.6952; x[3,1,van_D0_1]=0.0667; x[D0,6,van_D0_1]=0.8333
-Concentrated Q=11: y[1,van_D0_1]=0.3782; y[2,van_D0_1]=0.3782; y[4,van_D0_1]=0.1538; x[4,5,van_D0_1]=0.1538; x[1,2,van_D0_1]=0.3782; x[2,1,van_D0_1]=0.3782
+Baseline Q=11: y[1,van_D0_1]=0.2667; y[2,van_D0_1]=0.2667; y[4,van_D0_1]=0.6952; x[1,2,van_D0_1]=0.2667; x[4,5,van_D0_1]=0.6952; x[5,4,van_D0_1]=0.6952
+Baseline Q=12: y[1,van_D0_1]=0.2333; y[2,van_D0_1]=0.1667; y[3,van_D0_1]=0.0667; z[van_D0_1]=0.8333; x[D0,6,van_D0_1]=0.8333; x[1,2,van_D0_1]=0.1667; x[4,5,van_D0_1]=0.6952
+Concentrated Q=11: y[1,van_D0_1]=0.3782; y[2,van_D0_1]=0.3782; y[4,van_D0_1]=0.1538; x[1,2,van_D0_1]=0.3782; x[4,5,van_D0_1]=0.1538; x[5,4,van_D0_1]=0.1538

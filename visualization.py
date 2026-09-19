@@ -86,19 +86,30 @@ def plot_solution(
         )
 
     if "z" in variables:
-        plotted_routes = (
-            (
-                vehicle,
-                extract_route(vehicle, variables["x"], len(scenario["customers"])),
-                sum(
-                    scenario["customers"][customer]["demand"]
-                    for customer in scenario["customers"]
-                    if pulp.value(variables["y"][customer, vehicle]) > 0.5
-                ),
+        plotted_routes = []
+        for vehicle, active in variables["z"].items():
+            if pulp.value(active) < 0.5:
+                continue
+
+            try:
+                route = extract_route(
+                    vehicle, variables["x"], len(scenario["customers"])
+                )
+            except (KeyError, RuntimeError):
+                # Infeasible or incomplete solver results may not contain a full route.
+                continue
+
+            plotted_routes.append(
+                (
+                    vehicle,
+                    route,
+                    sum(
+                        scenario["customers"][customer]["demand"]
+                        for customer in scenario["customers"]
+                        if pulp.value(variables["y"][customer, vehicle]) > 0.5
+                    ),
+                )
             )
-            for vehicle, active in variables["z"].items()
-            if pulp.value(active) >= 0.5
-        )
     else:
         plotted_routes = (
             (
@@ -410,25 +421,32 @@ def plot_relaxation_results(results, output_file):
     plt.close(fig)
 
 
-def plot_fleet_results(results, output_file):
-    """Compare fixed and variable cost for the fleet cases."""
+def plot_fleet_results(results, output_file, show=False):
+    """Compare the three cost components of the fleet cases."""
     labels = [result["case"] for result in results]
     fixed_costs = [result["fixed_cost"] or 0 for result in results]
-    variable_costs = [result["variable_cost"] or 0 for result in results]
+    distance_costs = [result["distance_cost"] or 0 for result in results]
+    time_costs = [result["time_cost"] or 0 for result in results]
 
-    fig, ax = plt.subplots(figsize=(9, 5))
+    fig, ax = plt.subplots(figsize=(10, 5.5))
     fixed_bars = ax.bar(labels, fixed_costs, label="Fixed cost")
-    variable_bars = ax.bar(
+    distance_bars = ax.bar(
         labels,
-        variable_costs,
+        distance_costs,
         bottom=fixed_costs,
-        label="Variable cost"
+        label="Distance cost"
+    )
+    time_bars = ax.bar(
+        labels,
+        time_costs,
+        bottom=[fixed + distance for fixed, distance in zip(fixed_costs, distance_costs)],
+        label="Travel-time cost",
     )
 
-    for position, (fixed_cost, variable_cost) in enumerate(
-        zip(fixed_costs, variable_costs)
+    for position, (fixed_cost, distance_cost, time_cost) in enumerate(
+        zip(fixed_costs, distance_costs, time_costs)
     ):
-        total_cost = fixed_cost + variable_cost
+        total_cost = fixed_cost + distance_cost + time_cost
         if total_cost:
             ax.text(
                 position,
@@ -441,21 +459,24 @@ def plot_fleet_results(results, output_file):
     ax.set_title("Fleet composition cost comparison")
     ax.set_ylabel("Total cost")
     ax.grid(axis="y", alpha=0.3)
-    ax.legend(handles=[fixed_bars, variable_bars])
+    ax.legend(handles=[fixed_bars, distance_bars, time_bars])
 
     fig.tight_layout()
     output_file = Path(output_file)
     output_file.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output_file, dpi=180, bbox_inches="tight")
+    if show:
+        plt.show()
     plt.close(fig)
 
 
-def plot_truck_cost_relaxation(
+def plot_truck_cost_sensitivity(
     fixed_cost_results,
     distance_cost_results,
-    fixed_cost_break_even,
-    distance_cost_break_even,
-    output_file
+    critical_fixed_cost,
+    critical_distance_cost,
+    output_file,
+    show=False,
 ):
     """Show when one truck becomes cheaper than two vans."""
     fig, (ax_fixed, ax_distance) = plt.subplots(1, 2, figsize=(12, 5))
@@ -469,8 +490,8 @@ def plot_truck_cost_relaxation(
         label="One truck"
     )
     ax_fixed.axhline(van_cost, color="tab:orange", linestyle="--", label="Two vans")
-    ax_fixed.axvline(fixed_cost_break_even, color="black", linestyle=":")
-    ax_fixed.set_title("Relaxation of truck fixed cost")
+    ax_fixed.axvline(critical_fixed_cost, color="black", linestyle=":")
+    ax_fixed.set_title("Truck fixed-cost sensitivity")
     ax_fixed.set_xlabel("Truck fixed cost")
     ax_fixed.set_ylabel("Total cost")
     ax_fixed.grid(alpha=0.3)
@@ -492,22 +513,41 @@ def plot_truck_cost_relaxation(
         linestyle="--",
         label="Two vans"
     )
-    ax_distance.axvline(distance_cost_break_even, color="black", linestyle=":")
-    ax_distance.set_title("Relaxation of truck distance cost")
+    ax_distance.axvline(critical_distance_cost, color="black", linestyle=":")
+    ax_distance.set_title("Truck distance-cost sensitivity")
     ax_distance.set_xlabel("Truck cost per distance unit")
     ax_distance.set_ylabel("Total cost")
     ax_distance.grid(alpha=0.3)
     ax_distance.legend()
 
-    fig.suptitle("Break-even analysis: one truck versus two vans")
+    fig.suptitle("Critical-cost analysis: one truck versus two vans")
     fig.tight_layout()
     output_file = Path(output_file)
     output_file.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output_file, dpi=180, bbox_inches="tight")
+    if show:
+        plt.show()
     plt.close(fig)
 
 
-def plot_time_window_results(results, output_file):
+def plot_truck_cost_relaxation(
+    fixed_cost_results,
+    distance_cost_results,
+    critical_fixed_cost,
+    critical_distance_cost,
+    output_file,
+):
+    """Backward-compatible name for the truck cost-sensitivity plot."""
+    plot_truck_cost_sensitivity(
+        fixed_cost_results,
+        distance_cost_results,
+        critical_fixed_cost,
+        critical_distance_cost,
+        output_file,
+    )
+
+
+def plot_time_window_results(results, output_file, show=False):
     """Compare objective value and active vehicles across time-window cases."""
     positions = list(range(len(results)))
     labels = [result["short_name"] for result in results]
@@ -543,7 +583,7 @@ def plot_time_window_results(results, output_file):
             )
 
     ax_cost.set_title("Effect of time windows")
-    ax_cost.set_ylabel("Objective")
+    ax_cost.set_ylabel("Total cost")
     ax_cost.grid(axis="y", alpha=0.3)
 
     ax_vehicles.plot(
@@ -577,10 +617,12 @@ def plot_time_window_results(results, output_file):
     output_file = Path(output_file)
     output_file.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output_file, dpi=180, bbox_inches="tight")
+    if show:
+        plt.show()
     plt.close(fig)
 
 
-def plot_time_window_schedule(schedule_rows, output_file):
+def plot_time_window_schedule(schedule_rows, output_file, show=False):
     """Plot service starts inside their allowed time windows."""
     vehicles = sorted({row["vehicle"] for row in schedule_rows})
     vehicle_positions = {
@@ -619,6 +661,8 @@ def plot_time_window_schedule(schedule_rows, output_file):
     output_file = Path(output_file)
     output_file.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output_file, dpi=180, bbox_inches="tight")
+    if show:
+        plt.show()
     plt.close(fig)
 
 
@@ -890,12 +934,13 @@ def plot_time_window_animation(
     return final_time, frame_count
 
 
-def plot_multiple_depot_results(results, output_file):
+def plot_multiple_depot_results(results, output_file, show=False):
     """Compare cost and distance across the multiple-depot cases."""
     positions = list(range(len(results)))
     labels = [result["short_name"] for result in results]
     fixed_costs = [result["fixed_cost"] for result in results]
-    variable_costs = [result["variable_cost"] for result in results]
+    distance_costs = [result["distance_cost"] for result in results]
+    time_costs = [result["time_cost"] for result in results]
     distances = [result["total_distance"] for result in results]
 
     fig, (ax_cost, ax_distance) = plt.subplots(2, 1, figsize=(9, 7), sharex=True)
@@ -903,9 +948,15 @@ def plot_multiple_depot_results(results, output_file):
     ax_cost.bar(positions, fixed_costs, label="Fixed cost")
     ax_cost.bar(
         positions,
-        variable_costs,
+        distance_costs,
         bottom=fixed_costs,
-        label="Variable cost"
+        label="Distance cost"
+    )
+    ax_cost.bar(
+        positions,
+        time_costs,
+        bottom=[fixed + distance for fixed, distance in zip(fixed_costs, distance_costs)],
+        label="Travel-time cost"
     )
     for position, result in zip(positions, results):
         ax_cost.text(
@@ -940,4 +991,6 @@ def plot_multiple_depot_results(results, output_file):
     output_file = Path(output_file)
     output_file.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output_file, dpi=180, bbox_inches="tight")
+    if show:
+        plt.show()
     plt.close(fig)

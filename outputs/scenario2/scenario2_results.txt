@@ -1,0 +1,86 @@
+SCENARIO 2 - HETEROGENEOUS FLEET AND COST SENSITIVITY
+=====================================================
+
+EXPERIMENTAL SETUP
+------------------
+Customers: 6
+Total demand: 22
+Vehicle travel-time factors: disabled to isolate fleet capacity and cost
+
++------------+----------+------------+---------------+-----------+
+| Type       | Capacity | Fixed cost | Cost/distance | Cost/time |
++------------+----------+------------+---------------+-----------+
+| motorcycle | 4        | 5.0        | 0.35          | 0.1       |
+| van        | 12       | 15.0       | 0.6           | 0.1       |
+| truck      | 24       | 32.0       | 0.95          | 0.1       |
++------------+----------+------------+---------------+-----------+
+
+A. FLEET COMPOSITION COMPARISON
+-------------------------------
++-------------+------------------------------+---------------------+----------+-------------+----------+------------+---------------+-----------+------------+
+| Case        | Available fleet              | Selected fleet      | Vehicles | Active cap. | Distance | Fixed cost | Distance cost | Time cost | Total cost |
++-------------+------------------------------+---------------------+----------+-------------+----------+------------+---------------+-----------+------------+
+| Two vans    | van=2                        | van=2               | 2        | 24          | 26.2448  | 30.0       | 15.7469       | 13.1224   | 58.8693    |
+| One truck   | truck=1                      | truck=1             | 1        | 24          | 25.9922  | 32.0       | 24.6926       | 12.9961   | 69.6888    |
+| Mixed fleet | motorcycle=3, van=1          | motorcycle=3, van=1 | 4        | 24          | 43.7286  | 30.0       | 18.5856       | 21.8643   | 70.4499    |
+| Free choice | motorcycle=3, van=2, truck=1 | van=2               | 2        | 24          | 26.2448  | 30.0       | 15.7469       | 13.1224   | 58.8693    |
++-------------+------------------------------+---------------------+----------+-------------+----------+------------+---------------+-----------+------------+
+
+ROUTE DETAILS
+-------------
+Two vans:
+Routes: van_D0_1: D0 -> 3 -> 2 -> 1 -> D0; van_D0_2: D0 -> 6 -> 5 -> 4 -> D0
+Loads:  van_D0_1: 11; van_D0_2: 11
+
+One truck:
+Routes: truck_D0_1: D0 -> 6 -> 5 -> 4 -> 3 -> 2 -> 1 -> D0
+Loads:  truck_D0_1: 22
+
+Mixed fleet:
+Routes: motorcycle_D0_1: D0 -> 2 -> D0; motorcycle_D0_2: D0 -> 3 -> D0; motorcycle_D0_3: D0 -> 1 -> D0; van_D0_1: D0 -> 6 -> 5 -> 4 -> D0
+Loads:  motorcycle_D0_1: 4; motorcycle_D0_2: 3; motorcycle_D0_3: 4; van_D0_1: 11
+
+Free choice:
+Routes: van_D0_1: D0 -> 3 -> 2 -> 1 -> D0; van_D0_2: D0 -> 6 -> 5 -> 4 -> D0
+Loads:  van_D0_1: 11; van_D0_2: 11
+
+B. TRUCK COST SENSITIVITY
+-------------------------
+Exact critical fixed cost: 21.1806
+Exact critical distance cost: 0.5337
+
+The fixed-cost threshold is obtained from:
+F_truck* = C_two_vans - c_distance_truck*D_truck - c_time_truck*T_truck.
+
+The distance-cost threshold is obtained from:
+c_distance_truck* = (C_two_vans - F_truck - c_time_truck*T_truck) / D_truck.
+
+FIXED-COST SENSITIVITY
++------------------+------------------+---------------+--------------+----------------+
+| Truck fixed cost | Truck total cost | Two vans cost | Truck - vans | Cheaper option |
++------------------+------------------+---------------+--------------+----------------+
+| 32               | 69.6887          | 58.8693       | 10.8194      | Two vans       |
+| 28               | 65.6887          | 58.8693       | 6.8194       | Two vans       |
+| 24               | 61.6887          | 58.8693       | 2.8194       | Two vans       |
+| 22               | 59.6887          | 58.8693       | 0.8194       | Two vans       |
+| 21               | 58.6887          | 58.8693       | -0.1806      | One truck      |
+| 20               | 57.6887          | 58.8693       | -1.1806      | One truck      |
+| 18               | 55.6887          | 58.8693       | -3.1806      | One truck      |
++------------------+------------------+---------------+--------------+----------------+
+
+DISTANCE-COST SENSITIVITY
++---------------------+------------------+---------------+--------------+----------------+
+| Truck cost/distance | Truck total cost | Two vans cost | Truck - vans | Cheaper option |
++---------------------+------------------+---------------+--------------+----------------+
+| 0.95                | 69.6887          | 58.8693       | 10.8194      | Two vans       |
+| 0.8                 | 65.7899          | 58.8693       | 6.9206       | Two vans       |
+| 0.7                 | 63.1907          | 58.8693       | 4.3214       | Two vans       |
+| 0.6                 | 60.5914          | 58.8693       | 1.7221       | Two vans       |
+| 0.55                | 59.2918          | 58.8693       | 0.4225       | Two vans       |
+| 0.53                | 58.772           | 58.8693       | -0.0973      | One truck      |
+| 0.52                | 58.5121          | 58.8693       | -0.3572      | One truck      |
+| 0.5                 | 57.9922          | 58.8693       | -0.8771      | One truck      |
++---------------------+------------------+---------------+--------------+----------------+
+
+Solver validation
+After setting the truck fixed cost to 21, the free-choice MILP selects truck=1 with total cost 58.6888.

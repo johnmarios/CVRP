@@ -1,0 +1,44 @@
+SCENARIO 4 - MULTIPLE DEPOTS AND VEHICLE ALLOCATION
+====================================================
+
+EXPERIMENTAL SETUP
+------------------
+Customers: 6 in two spatial clusters
+Total demand: 22
+Capacity lower bound: 2 vans
+
+DEPOT COMPARISON
+----------------
++-------------------+--------------------+--------------------+----------+----------+---------------------+------------+---------------+-----------+------------+-----------------+
+| Case              | Available fleet    | Selected fleet     | Vehicles | Distance | Distance saving (%) | Fixed cost | Distance cost | Time cost | Total cost | Cost saving (%) |
++-------------------+--------------------+--------------------+----------+----------+---------------------+------------+---------------+-----------+------------+-----------------+
+| Central depot     | D0:van=2           | D0:van=2           | 2        | 26.2448  | 0.0                 | 30.0       | 15.7469       | 13.1224   | 58.8693    | 0.0             |
+| Two local depots  | D1:van=1, D2:van=1 | D1:van=1, D2:van=1 | 2        | 11.8771  | 54.74               | 30.0       | 7.1262        | 5.9385    | 43.0648    | 26.85           |
+| Imbalanced depots | D1:van=2           | D1:van=2           | 2        | 27.5276  | -4.89               | 30.0       | 16.5166       | 13.7638   | 60.2804    | -2.4            |
+| Free depot choice | D1:van=2, D2:van=2 | D1:van=1, D2:van=1 | 2        | 11.8771  | 54.74               | 30.0       | 7.1262        | 5.9385    | 43.0648    | 26.85           |
++-------------------+--------------------+--------------------+----------+----------+---------------------+------------+---------------+-----------+------------+-----------------+
+
+ROUTES AND DEPOT ALLOCATION
+---------------------------
+Central depot:
+Routes: van_D0_1: D0 -> 3 -> 2 -> 1 -> D0; van_D0_2: D0 -> 6 -> 5 -> 4 -> D0
+Loads:  van_D0_1: 11; van_D0_2: 11
+D0: vehicles=2, demand=22, distance=26.245, customers=C3,C2,C1,C6,C5,C4
+
+Two local depots:
+Routes: van_D1_1: D1 -> 1 -> 2 -> 3 -> D1; van_D2_1: D2 -> 4 -> 5 -> 6 -> D2
+Loads:  van_D1_1: 11; van_D2_1: 11
+D1: vehicles=1, demand=11, distance=5.939, customers=C1,C2,C3
+D2: vehicles=1, demand=11, distance=5.939, customers=C4,C5,C6
+
+Imbalanced depots:
+Routes: van_D1_1: D1 -> 6 -> 5 -> 4 -> D1; van_D1_2: D1 -> 1 -> 2 -> 3 -> D1
+Loads:  van_D1_1: 11; van_D1_2: 11
+D1: vehicles=2, demand=22, distance=27.528, customers=C6,C5,C4,C1,C2,C3
+D2: vehicles=0, demand=0, distance=0.000, customers=-
+
+Free depot choice:
+Routes: van_D1_1: D1 -> 1 -> 2 -> 3 -> D1; van_D2_1: D2 -> 4 -> 5 -> 6 -> D2
+Loads:  van_D1_1: 11; van_D2_1: 11
+D1: vehicles=1, demand=11, distance=5.939, customers=C1,C2,C3
+D2: vehicles=1, demand=11, distance=5.939, customers=C4,C5,C6

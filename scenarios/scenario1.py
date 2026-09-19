@@ -307,7 +307,7 @@ def build_setup_section(baseline, concentrated, number_of_vans):
 
 
 def build_capacity_section(capacity_results):
-    """Create the capacity table, routes and mathematical observations."""
+    """Create the capacity table, representative routes and cost table."""
     columns = [
         ("capacity", "Q"),
         ("fleet_capacity", "Fleet cap."),
@@ -328,11 +328,6 @@ def build_capacity_section(capacity_results):
 
     q11 = find_capacity_result(capacity_results, 11)
     q22 = find_capacity_result(capacity_results, 22)
-    cost_reduction = 100 * (q11["objective"] - q22["objective"]) / q11["objective"]
-    distance_reduction = 100 * (
-        q11["total_distance"] - q22["total_distance"]
-    ) / q11["total_distance"]
-
     return f"""A. CAPACITY SENSITIVITY
 -----------------------
 {make_text_table(capacity_results, columns)}
@@ -345,13 +340,7 @@ Q=22 routes: {format_routes(q22['routes'])}
 Q=22 loads:  {format_loads(q22['loads'])}
 
 Cost decomposition
-{make_text_table([q11, q22], cost_columns)}
-
-Mathematical observations
-1. Q=8 and Q=10 require at least 3 vans, but only 2 are available.
-2. Q=11 is the smallest tested feasible capacity.
-3. For 11 <= Q < 22, two routes are still required and the optimal cost is unchanged.
-4. At Q=22 one van is sufficient. Cost falls by {cost_reduction:.2f}% and distance by only {distance_reduction:.2f}%."""
+{make_text_table([q11, q22], cost_columns)}"""
 
 
 def build_demand_section(demand_results):

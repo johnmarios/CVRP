@@ -1,0 +1,423 @@
+import math
+from pathlib import Path
+import sys
+import time
+
+import pulp
+
+
+PROJECT_DIRECTORY = Path(__file__).resolve().parents[1]
+if str(PROJECT_DIRECTORY) not in sys.path:
+    sys.path.insert(0, str(PROJECT_DIRECTORY))
+
+from model import build_model, get_d_ij, get_t_ijk
+from tools import extract_route, format_loads, format_routes, get_output_directory, make_text_table, readjson
+from visualization import plot_multiple_depot_results, plot_solution
+
+
+DEPOT_CASES = {
+    "Central depot": "data/scenario4/central_depot.json",
+    "Two local depots": "data/scenario4/two_local_depots.json",
+    "Imbalanced depots": "data/scenario4/imbalanced_depots.json",
+    "Free depot choice": "data/scenario4/free_depot_choice.json",
+}
+
+
+# -----------------------------------------------------------------------------
+# 1. INPUT DATA
+# -----------------------------------------------------------------------------
+
+def load_inputs():
+    """Load the four depot scenarios and the vehicle parameters."""
+    scenarios = {
+        case_name: readjson(file_name)
+        for case_name, file_name in DEPOT_CASES.items()
+    }
+    vehicle_types = readjson("data/vehicles.json")["vehicle_types"]
+    return scenarios, vehicle_types
+
+
+def available_fleet_text(scenario):
+    """Describe vehicle availability separately for every depot."""
+    parts = []
+    for vehicle_type, information in scenario["vehicle_info"].items():
+        for depot, count in information["depots"].items():
+            if count > 0:
+                parts.append(f"{depot}:{vehicle_type}={count}")
+    return ", ".join(parts)
+
+
+# -----------------------------------------------------------------------------
+# 2. SOLVE ONE DEPOT CASE
+# -----------------------------------------------------------------------------
+
+def add_symmetry_breaking(model, variables, scenario):
+    """Activate identical vehicles at each depot in a fixed order."""
+    for vehicle_type, information in scenario["vehicle_info"].items():
+        for depot in information["depots"]:
+            prefix = f"{vehicle_type}_{depot}_"
+            vehicles = sorted(
+                vehicle
+                for vehicle in variables["z"]
+                if vehicle.startswith(prefix)
+            )
+            for first, second in zip(vehicles[:-1], vehicles[1:]):
+                model += variables["z"][first] >= variables["z"][second]
+
+
+def solve_model(model):
+    """Solve a model with CBC and return status and runtime."""
+    start = time.perf_counter()
+    model.solve(pulp.PULP_CBC_CMD(msg=False))
+    runtime = round(time.perf_counter() - start, 4)
+    return pulp.LpStatus[model.status], runtime
+
+
+def create_result(case_name, scenario, vehicle_types):
+    """Create an empty result containing the common depot-case data."""
+    total_demand = sum(
+        customer["demand"] for customer in scenario["customers"].values()
+    )
+    capacity = vehicle_types["van"]["capacity"]
+    return {
+        "case": case_name,
+        "short_name": scenario["short_name"],
+        "available_fleet": available_fleet_text(scenario),
+        "selected_fleet": None,
+        "status": "Not solved",
+        "active_vehicles": None,
+        "active_capacity": None,
+        "capacity_lower_bound": math.ceil(total_demand / capacity),
+        "utilization_percent": None,
+        "total_distance": None,
+        "total_travel_time": None,
+        "fixed_cost": None,
+        "distance_cost": None,
+        "time_cost": None,
+        "objective": None,
+        "cost_savings_percent": None,
+        "distance_savings_percent": None,
+        "runtime_seconds": 0.0,
+        "routes": {},
+        "loads": {},
+        "depot_summary": {},
+    }
+
+
+def extract_routes_and_loads(scenario, variables):
+    """Extract the route and load of each active vehicle."""
+    routes = {}
+    loads = {}
+
+    for vehicle in sorted(variables["z"]):
+        if pulp.value(variables["z"][vehicle]) < 0.5:
+            continue
+
+        routes[vehicle] = extract_route(
+            vehicle, variables["x"], len(scenario["customers"])
+        )
+        loads[vehicle] = sum(
+            scenario["customers"][customer]["demand"]
+            for customer in scenario["customers"]
+            if pulp.value(variables["y"][customer, vehicle]) > 0.5
+        )
+
+    return routes, loads
+
+
+def calculate_route_costs(scenario, vehicle_types, routes):
+    """Calculate distance, travel time and all objective components."""
+    fixed_cost = 0.0
+    distance_cost = 0.0
+    time_cost = 0.0
+    total_distance = 0.0
+    total_travel_time = 0.0
+
+    for vehicle, route in routes.items():
+        vehicle_type = vehicle.split("_")[0]
+        vehicle_data = vehicle_types[vehicle_type]
+        fixed_cost += vehicle_data["fixed_cost"]
+
+        for first, second in zip(route[:-1], route[1:]):
+            distance = get_d_ij(scenario, first, second)
+            travel_time = get_t_ijk(
+                scenario, vehicle_types, first, second, vehicle
+            )
+            total_distance += distance
+            total_travel_time += travel_time
+            distance_cost += vehicle_data["cost_per_distance"] * distance
+            time_cost += vehicle_data["cost_per_time"] * travel_time
+
+    return {
+        "fixed_cost": round(fixed_cost, 4),
+        "distance_cost": round(distance_cost, 4),
+        "time_cost": round(time_cost, 4),
+        "total_distance": round(total_distance, 4),
+        "total_travel_time": round(total_travel_time, 4),
+    }
+
+
+def build_depot_summary(scenario, routes, loads):
+    """Aggregate selected vehicles, demand and customers by depot."""
+    summary = {
+        depot: {
+            "vehicles": 0,
+            "demand": 0,
+            "distance": 0.0,
+            "customers": [],
+        }
+        for depot in scenario["depots"]
+    }
+
+    for vehicle, route in routes.items():
+        depot = vehicle.split("_")[1]
+        customers = [node for node in route if node in scenario["customers"]]
+        distance = sum(
+            get_d_ij(scenario, first, second)
+            for first, second in zip(route[:-1], route[1:])
+        )
+        summary[depot]["vehicles"] += 1
+        summary[depot]["demand"] += loads[vehicle]
+        summary[depot]["distance"] += distance
+        summary[depot]["customers"].extend(customers)
+
+    return summary
+
+
+def selected_fleet_text(depot_summary):
+    """Describe the number of selected vans at each depot."""
+    selected = [
+        f"{depot}:van={data['vehicles']}"
+        for depot, data in depot_summary.items()
+        if data["vehicles"] > 0
+    ]
+    return ", ".join(selected)
+
+
+def complete_result(result, model, scenario, vehicle_types, variables):
+    """Add routes, depot allocation and costs to one optimal result."""
+    routes, loads = extract_routes_and_loads(scenario, variables)
+    costs = calculate_route_costs(scenario, vehicle_types, routes)
+    depot_summary = build_depot_summary(scenario, routes, loads)
+    total_demand = sum(
+        customer["demand"] for customer in scenario["customers"].values()
+    )
+    active_capacity = sum(
+        vehicle_types[vehicle.split("_")[0]]["capacity"]
+        for vehicle in routes
+    )
+
+    result.update(costs)
+    result.update(
+        {
+            "selected_fleet": selected_fleet_text(depot_summary),
+            "active_vehicles": len(routes),
+            "active_capacity": active_capacity,
+            "utilization_percent": round(
+                100 * total_demand / active_capacity, 2
+            ),
+            "objective": round(pulp.value(model.objective), 4),
+            "routes": routes,
+            "loads": loads,
+            "depot_summary": depot_summary,
+        }
+    )
+
+
+def solve_depot_case(case_name, scenario, vehicle_types):
+    """Build, solve and summarize one depot-location case."""
+    model, variables = build_model(scenario, vehicle_types)
+    add_symmetry_breaking(model, variables, scenario)
+    result = create_result(case_name, scenario, vehicle_types)
+    result["status"], result["runtime_seconds"] = solve_model(model)
+
+    if result["status"] == "Optimal":
+        complete_result(result, model, scenario, vehicle_types, variables)
+
+    return result, variables
+
+
+# -----------------------------------------------------------------------------
+# 3. DEPOT EXPERIMENT
+# -----------------------------------------------------------------------------
+
+def add_reference_savings(results):
+    """Compare every case with the central-depot reference."""
+    reference = results[0]
+    for result in results:
+        if result["status"] != "Optimal":
+            continue
+        result["cost_savings_percent"] = round(
+            100
+            * (reference["objective"] - result["objective"])
+            / reference["objective"],
+            2,
+        )
+        result["distance_savings_percent"] = round(
+            100
+            * (reference["total_distance"] - result["total_distance"])
+            / reference["total_distance"],
+            2,
+        )
+
+
+def run_depot_experiment(scenarios, vehicle_types):
+    """Solve the four depot-location cases."""
+    results = []
+    solved_cases = {}
+
+    for case_name, scenario in scenarios.items():
+        result, variables = solve_depot_case(
+            case_name, scenario, vehicle_types
+        )
+        results.append(result)
+        solved_cases[case_name] = (scenario, variables)
+        print(
+            f"{case_name}: {result['status']} | "
+            f"selected={result['selected_fleet'] or '-'} | "
+            f"cost={result['objective'] or '-'}"
+        )
+
+    add_reference_savings(results)
+    return results, solved_cases
+
+
+def find_case(results, case_name):
+    """Return one result using its case name."""
+    return next(result for result in results if result["case"] == case_name)
+
+
+# -----------------------------------------------------------------------------
+# 4. TEXT REPORT
+# -----------------------------------------------------------------------------
+
+def format_depot_summary(summary):
+    """Format the depot allocation of one solution."""
+    lines = []
+    for depot, data in summary.items():
+        customers = ",".join(f"C{customer}" for customer in data["customers"])
+        lines.append(
+            f"{depot}: vehicles={data['vehicles']}, demand={data['demand']}, "
+            f"distance={data['distance']:.3f}, customers={customers or '-'}"
+        )
+    return "\n".join(lines)
+
+
+def build_report(results):
+    """Build the single report for Scenario 4."""
+    columns = [
+        ("case", "Case"),
+        ("available_fleet", "Available fleet"),
+        ("selected_fleet", "Selected fleet"),
+        ("active_vehicles", "Vehicles"),
+        ("total_distance", "Distance"),
+        ("distance_savings_percent", "Distance saving (%)"),
+        ("fixed_cost", "Fixed cost"),
+        ("distance_cost", "Distance cost"),
+        ("time_cost", "Time cost"),
+        ("objective", "Total cost"),
+        ("cost_savings_percent", "Cost saving (%)"),
+    ]
+
+    route_lines = []
+    for result in results:
+        route_lines.extend(
+            [
+                f"{result['case']}:",
+                f"Routes: {format_routes(result['routes'])}",
+                f"Loads:  {format_loads(result['loads'])}",
+                format_depot_summary(result["depot_summary"]),
+                "",
+            ]
+        )
+
+    central = find_case(results, "Central depot")
+
+    return f"""SCENARIO 4 - MULTIPLE DEPOTS AND VEHICLE ALLOCATION
+====================================================
+
+EXPERIMENTAL SETUP
+------------------
+Customers: 6 in two spatial clusters
+Total demand: 22
+Capacity lower bound: {central['capacity_lower_bound']} vans
+
+DEPOT COMPARISON
+----------------
+{make_text_table(results, columns)}
+
+ROUTES AND DEPOT ALLOCATION
+---------------------------
+{chr(10).join(route_lines).rstrip()}"""
+
+
+# -----------------------------------------------------------------------------
+# 5. OUTPUTS
+# -----------------------------------------------------------------------------
+
+def save_report(report, output_directory):
+    """Save and return the scenario report path."""
+    report_file = output_directory / "scenario4_results.txt"
+    report_file.write_text(report, encoding="utf-8")
+    return report_file
+
+
+def save_plots(results, solved_cases, vehicle_types, output_directory, show):
+    """Save the comparison plot and the three informative route plots."""
+    comparison_file = output_directory / "depot_cost_comparison.png"
+    plot_multiple_depot_results(results, comparison_file, show=show)
+
+    route_files = {}
+    for case_name, file_name in (
+        ("Central depot", "route_central_depot.png"),
+        ("Two local depots", "route_two_local_depots.png"),
+        ("Imbalanced depots", "route_imbalanced_depots.png"),
+        ("Free depot choice", "route_free_depot_choice.png"),
+    ):
+        scenario, variables = solved_cases[case_name]
+        route_file = output_directory / file_name
+        plot_solution(
+            scenario,
+            variables,
+            vehicle_types,
+            route_file,
+            show=show,
+        )
+        route_files[case_name] = route_file
+
+    return comparison_file, route_files
+
+
+# -----------------------------------------------------------------------------
+# 6. MAIN WORKFLOW
+# -----------------------------------------------------------------------------
+
+def main():
+    """Run Scenario 4 and save its presentation-ready outputs."""
+    show_plots = "--show" in sys.argv
+    scenarios, vehicle_types = load_inputs()
+    output_directory = get_output_directory("scenario4")
+
+    print("Running multiple-depot comparison...")
+    results, solved_cases = run_depot_experiment(
+        scenarios, vehicle_types
+    )
+    report = build_report(results)
+    report_file = save_report(report, output_directory)
+    comparison_file, route_files = save_plots(
+        results,
+        solved_cases,
+        vehicle_types,
+        output_directory,
+        show_plots,
+    )
+
+    print("\n" + report)
+    print(f"Results saved in: {report_file}")
+    print(f"Comparison plot saved in: {comparison_file}")
+    for case_name, route_file in route_files.items():
+        print(f"{case_name} route saved in: {route_file}")
+
+
+if __name__ == "__main__":
+    main()

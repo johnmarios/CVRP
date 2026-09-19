@@ -1,0 +1,27 @@
+{
+  "name": "Free depot choice",
+  "short_name": "Free choice",
+  "description": "The MILP selects active vans from two vehicles available at each local depot.",
+  "depots": {
+    "D1": {"coordinates": [2.5, 3.5]},
+    "D2": {"coordinates": [-2.5, -3.5]}
+  },
+  "customers": {
+    "1": {"coordinates": [2.0, 4.0], "demand": 4, "service_time": 10},
+    "2": {"coordinates": [3.0, 5.0], "demand": 4, "service_time": 10},
+    "3": {"coordinates": [4.0, 3.0], "demand": 3, "service_time": 10},
+    "4": {"coordinates": [-2.0, -4.0], "demand": 4, "service_time": 10},
+    "5": {"coordinates": [-3.0, -5.0], "demand": 3, "service_time": 10},
+    "6": {"coordinates": [-4.0, -3.0], "demand": 4, "service_time": 10}
+  },
+  "vehicle_info": {
+    "motorcycle": {"depots": {"D1": 0, "D2": 0}},
+    "van": {"depots": {"D1": 2, "D2": 2}},
+    "truck": {"depots": {"D1": 0, "D2": 0}}
+  },
+  "minutes_per_distance_unit": 5.0,
+  "use_vehicle_travel_time_factors": false,
+  "horizon": 600.0,
+  "use_time_constraints": false,
+  "time_windows": {}
+}

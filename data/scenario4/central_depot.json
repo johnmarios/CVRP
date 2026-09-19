@@ -1,0 +1,24 @@
+{
+  "name": "Central depot",
+  "short_name": "Central",
+  "description": "Reference case with two vans at one central depot.",
+  "depots": {"D0": {"coordinates": [0.0, 0.0]}},
+  "customers": {
+    "1": {"coordinates": [2.0, 4.0], "demand": 4, "service_time": 10},
+    "2": {"coordinates": [3.0, 5.0], "demand": 4, "service_time": 10},
+    "3": {"coordinates": [4.0, 3.0], "demand": 3, "service_time": 10},
+    "4": {"coordinates": [-2.0, -4.0], "demand": 4, "service_time": 10},
+    "5": {"coordinates": [-3.0, -5.0], "demand": 3, "service_time": 10},
+    "6": {"coordinates": [-4.0, -3.0], "demand": 4, "service_time": 10}
+  },
+  "vehicle_info": {
+    "motorcycle": {"depots": {"D0": 0}},
+    "van": {"depots": {"D0": 2}},
+    "truck": {"depots": {"D0": 0}}
+  },
+  "minutes_per_distance_unit": 5.0,
+  "use_vehicle_travel_time_factors": false,
+  "horizon": 600.0,
+  "use_time_constraints": false,
+  "time_windows": {}
+}
