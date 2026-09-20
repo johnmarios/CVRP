@@ -343,26 +343,33 @@ def build_report(results, solved_cases):
             ]
         )
 
-    return f"""SCENARIO 3 - VEHICLE ROUTING WITH TIME WINDOWS
-================================================
-
-EXPERIMENTAL SETUP
-------------------
-Customers: 6
-Available fleet: 3 identical vans
-Capacity lower bound: {no_windows['capacity_lower_bound']}
-
-TIME-WINDOW COMPARISON
-----------------------
-{make_text_table(results, columns)}
-
-ROUTES AND SERVICE TIMES
-------------------------
-{chr(10).join(route_lines).rstrip()}
-
-TIGHT-FEASIBLE SCHEDULE
------------------------
-{make_text_table(build_schedule_table(tight_schedule), schedule_columns)}"""
+    route_text = "\n".join(route_lines).rstrip()
+    schedule_table = make_text_table(
+        build_schedule_table(tight_schedule), schedule_columns
+    )
+    report_str = (
+        "SCENARIO 3 - VEHICLE ROUTING WITH TIME WINDOWS\n"
+        "================================================\n"
+        "\n"
+        "EXPERIMENTAL SETUP\n"
+        "------------------\n"
+        "Customers: 6\n"
+        "Available fleet: 3 identical vans\n"
+        f"Capacity lower bound: {no_windows['capacity_lower_bound']}\n"
+        "\n"
+        "TIME-WINDOW COMPARISON\n"
+        "----------------------\n"
+        + make_text_table(results, columns) + "\n"
+        "\n"
+        "ROUTES AND SERVICE TIMES\n"
+        "------------------------\n"
+        f"{route_text}\n"
+        "\n"
+        "TIGHT-FEASIBLE SCHEDULE\n"
+        "-----------------------\n"
+        f"{schedule_table}"
+    )
+    return report_str
 
 
 # -----------------------------------------------------------------------------

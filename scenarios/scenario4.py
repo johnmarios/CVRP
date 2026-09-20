@@ -95,8 +95,6 @@ def create_result(case_name, scenario, vehicle_types):
         "distance_cost": None,
         "time_cost": None,
         "objective": None,
-        "cost_savings_percent": None,
-        "distance_savings_percent": None,
         "runtime_seconds": 0.0,
         "routes": {},
         "loads": {},
@@ -241,26 +239,6 @@ def solve_depot_case(case_name, scenario, vehicle_types):
 # 3. DEPOT EXPERIMENT
 # -----------------------------------------------------------------------------
 
-def add_reference_savings(results):
-    """Compare every case with the central-depot reference."""
-    reference = results[0]
-    for result in results:
-        if result["status"] != "Optimal":
-            continue
-        result["cost_savings_percent"] = round(
-            100
-            * (reference["objective"] - result["objective"])
-            / reference["objective"],
-            2,
-        )
-        result["distance_savings_percent"] = round(
-            100
-            * (reference["total_distance"] - result["total_distance"])
-            / reference["total_distance"],
-            2,
-        )
-
-
 def run_depot_experiment(scenarios, vehicle_types):
     """Solve the four depot-location cases."""
     results = []
@@ -278,7 +256,6 @@ def run_depot_experiment(scenarios, vehicle_types):
             f"cost={result['objective'] or '-'}"
         )
 
-    add_reference_savings(results)
     return results, solved_cases
 
 
@@ -311,12 +288,10 @@ def build_report(results):
         ("selected_fleet", "Selected fleet"),
         ("active_vehicles", "Vehicles"),
         ("total_distance", "Distance"),
-        ("distance_savings_percent", "Distance saving (%)"),
         ("fixed_cost", "Fixed cost"),
         ("distance_cost", "Distance cost"),
         ("time_cost", "Time cost"),
         ("objective", "Total cost"),
-        ("cost_savings_percent", "Cost saving (%)"),
     ]
 
     route_lines = []
@@ -333,22 +308,26 @@ def build_report(results):
 
     central = find_case(results, "Central depot")
 
-    return f"""SCENARIO 4 - MULTIPLE DEPOTS AND VEHICLE ALLOCATION
-====================================================
-
-EXPERIMENTAL SETUP
-------------------
-Customers: 6 in two spatial clusters
-Total demand: 22
-Capacity lower bound: {central['capacity_lower_bound']} vans
-
-DEPOT COMPARISON
-----------------
-{make_text_table(results, columns)}
-
-ROUTES AND DEPOT ALLOCATION
----------------------------
-{chr(10).join(route_lines).rstrip()}"""
+    route_text = "\n".join(route_lines).rstrip()
+    report_str = (
+        "SCENARIO 4 - MULTIPLE DEPOTS AND VEHICLE ALLOCATION\n"
+        "====================================================\n"
+        "\n"
+        "EXPERIMENTAL SETUP\n"
+        "------------------\n"
+        "Customers: 6 in two spatial clusters\n"
+        "Total demand: 22\n"
+        f"Capacity lower bound: {central['capacity_lower_bound']} vans\n"
+        "\n"
+        "DEPOT COMPARISON\n"
+        "----------------\n"
+        + make_text_table(results, columns) + "\n"
+        "\n"
+        "ROUTES AND DEPOT ALLOCATION\n"
+        "---------------------------\n"
+        f"{route_text}"
+    )
+    return report_str
 
 
 # -----------------------------------------------------------------------------

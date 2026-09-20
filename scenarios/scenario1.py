@@ -21,7 +21,13 @@ from tools import (
     make_text_table,
     readjson,
 )
-from visualization import plot_capacity_results, plot_scenario1_comparison, plot_solution, plot_scenario_demo
+from visualization import (
+    plot_capacity_results,
+    plot_demand_distribution,
+    plot_relaxation_results,
+    plot_solution,
+    plot_scenario_demo,
+)
 
 
 CAPACITIES = [8, 10, 11, 12, 16, 21, 22]
@@ -290,24 +296,27 @@ def run_relaxation_experiment(baseline_scenario, concentrated_scenario, vehicle_
 
 # TEXT REPORT
 
+# build the report sections and join them in one string
+
 def build_setup_section(baseline, concentrated, number_of_vans):
     """Describe the common experimental setup."""
-    return "\n".join(
-        [
-            "EXPERIMENTAL SETUP",
-            "------------------",
-            f"Customers: {len(baseline['customers'])}",
-            f"Available vehicles: {number_of_vans} identical vans",
-            f"Baseline demands: {', '.join(map(str, get_demands(baseline)))}",
-            f"Concentrated demands: {', '.join(map(str, get_demands(concentrated)))}",
-            f"Total demand: {sum(get_demands(baseline))}",
-            f"Capacity values: {', '.join(map(str, CAPACITIES))}",
-        ]
+    report_str = (
+        "EXPERIMENTAL SETUP\n"
+        "------------------\n"
+        f"Customers: {len(baseline['customers'])}\n"
+        f"Available vehicles: {number_of_vans} identical vans\n"
+        f"Baseline demands: {', '.join(map(str, get_demands(baseline)))}\n"
+        f"Concentrated demands: {', '.join(map(str, get_demands(concentrated)))}\n"
+        f"Total demand: {sum(get_demands(baseline))}\n"
+        f"Capacity values: {', '.join(map(str, CAPACITIES))}"
     )
+    return report_str
 
 
 def build_capacity_section(capacity_results):
     """Create the capacity table, representative routes and cost table."""
+
+    # for capacity table
     columns = [
         ("capacity", "Q"),
         ("fleet_capacity", "Fleet cap."),
@@ -318,6 +327,8 @@ def build_capacity_section(capacity_results):
         ("objective", "Total cost"),
         ("total_distance", "Distance"),
     ]
+
+    # for cost decomposition table (q11 and q22 only)
     cost_columns = [
         ("capacity", "Q"),
         ("fixed_cost", "Fixed cost"),
@@ -328,19 +339,24 @@ def build_capacity_section(capacity_results):
 
     q11 = find_capacity_result(capacity_results, 11)
     q22 = find_capacity_result(capacity_results, 22)
-    return f"""A. CAPACITY SENSITIVITY
------------------------
-{make_text_table(capacity_results, columns)}
 
-Representative routes
-Q=11 routes: {format_routes(q11['routes'])}
-Q=11 loads:  {format_loads(q11['loads'])}
+    report_str = (
+        "A. CAPACITY SENSITIVITY\n"
+        "-----------------------\n"
+        + make_text_table(capacity_results, columns) + "\n"
+        "\n"
+        "Representative routes\n"
+        f"Q=11 routes: {format_routes(q11['routes'])}\n"
+        f"Q=11 loads:  {format_loads(q11['loads'])}\n"
+        "\n"
+        f"Q=22 routes: {format_routes(q22['routes'])}\n"
+        f"Q=22 loads:  {format_loads(q22['loads'])}\n"
+        "\n"
+        "Cost decomposition\n"
+        + make_text_table([q11, q22], cost_columns)
+    )
 
-Q=22 routes: {format_routes(q22['routes'])}
-Q=22 loads:  {format_loads(q22['loads'])}
-
-Cost decomposition
-{make_text_table([q11, q22], cost_columns)}"""
+    return report_str
 
 
 def build_demand_section(demand_results):
@@ -355,12 +371,16 @@ def build_demand_section(demand_results):
     ]
     concentrated = demand_results[1]
 
-    return f"""B. DEMAND DISTRIBUTION AT Q=11
-------------------------------
-{make_text_table(demand_results, columns)}
+    report_str = (
+        "B. DEMAND DISTRIBUTION AT Q=11\n"
+        "------------------------------\n"
+        + make_text_table(demand_results, columns) + "\n"
+        "\n"
+        "Infeasibility feedback\n"
+        f"{concentrated['feedback']}"
+    )
+    return report_str
 
-Infeasibility feedback
-{concentrated['feedback']}"""
 
 
 def build_relaxation_section(relaxation_results):
@@ -382,14 +402,17 @@ def build_relaxation_section(relaxation_results):
         for result in relaxation_results
     )
 
-    return f"""C. MILP AND LP RELAXATION
---------------------------
-{make_text_table(relaxation_results, columns)}
+    report_str = (
+        "C. MILP AND LP RELAXATION\n"
+        "--------------------------\n"
+        + make_text_table(relaxation_results, columns) + "\n"
+        "\n"
+        "Representative fractional variables\n"
+        f"{examples}"
+    )
+    return report_str
 
-Representative fractional variables
-{examples}"""
-
-
+# build report from sections and return it as a single string
 def build_report(
     baseline,
     concentrated,
@@ -398,25 +421,20 @@ def build_report(
     relaxation_results,
 ):
     """Join the setup and the three experiment sections in one report."""
-    title = (
-        "SCENARIO 1 - CAPACITY, DEMAND DISTRIBUTION AND LP RELAXATION\n"
-        "============================================================"
-    )
+    title = ("SCENARIO 1 - CAPACITY, DEMAND DISTRIBUTION AND LP RELAXATION\n"
+        "============================================================")
     sections = [
         title,
-        build_setup_section(
-            baseline, concentrated, get_number_of_vans(baseline)
-        ),
+        build_setup_section(baseline, concentrated, get_number_of_vans(baseline)),
         build_capacity_section(capacity_results),
         build_demand_section(demand_results),
         build_relaxation_section(relaxation_results),
     ]
-    return "\n\n".join(sections) + "\n"
+    report_str = "\n\n".join(sections) + "\n"
+    return report_str
 
 
-# -----------------------------------------------------------------------------
-# 5. OUTPUTS
-# -----------------------------------------------------------------------------
+# outputs
 
 def save_report(report, output_directory):
     """Save and return the path of the single text report."""
@@ -433,8 +451,9 @@ def save_plots(
     output_directory,
     show_plots,
 ):
-    """Save the two plots of Scenario 1 and return their paths."""
+    """Save the three Scenario 1 plots and return their paths."""
     capacity_plot = output_directory / "capacity_sensitivity_plot.png"
+
     plot_capacity_results(
         capacity_results,
         CAPACITIES,
@@ -446,15 +465,21 @@ def save_plots(
         "Baseline": get_demands(baseline),
         "Concentrated": get_demands(concentrated),
     }
-    comparison_plot = output_directory / "demand_and_relaxation_plot.png"
-    plot_scenario1_comparison(
+    demand_plot = output_directory / "demand_distribution_plot.png"
+    plot_demand_distribution(
         demand_profiles,
         TEST_CAPACITY,
-        relaxation_results,
-        comparison_plot,
+        demand_plot,
         show=show_plots,
     )
-    return capacity_plot, comparison_plot
+
+    relaxation_plot = output_directory / "lp_relaxation_plot.png"
+    plot_relaxation_results(
+        relaxation_results,
+        relaxation_plot,
+        show=show_plots,
+    )
+    return capacity_plot, demand_plot, relaxation_plot
 
 
 
@@ -469,8 +494,8 @@ def main():
     baseline, concentrated, vehicle_types = load_inputs()
     output_directory = get_output_directory("scenario1")
 
-    plot_scenario_demo(baseline)
-    pass
+    # plot_scenario_demo(baseline)
+    # pass
 
     print("Running capacity sensitivity...")
     capacity_results = run_capacity_experiment(baseline, vehicle_types)
@@ -485,6 +510,7 @@ def main():
     print("Running LP relaxations...")
     relaxation_results = run_relaxation_experiment(baseline, concentrated, vehicle_types, capacity_results, concentrated_q11,)
 
+    # build and save report 
     report = build_report(
         baseline,
         concentrated,
@@ -493,7 +519,9 @@ def main():
         relaxation_results,
     )
     report_file = save_report(report, output_directory)
-    capacity_plot, comparison_plot = save_plots(
+
+    # save the capacity, demand-distribution and LP-relaxation plots
+    capacity_plot, demand_plot, relaxation_plot = save_plots(
         baseline,
         concentrated,
         capacity_results,
@@ -505,7 +533,8 @@ def main():
     print("\n" + report)
     print(f"Results saved in: {report_file}")
     print(f"Capacity plot saved in: {capacity_plot}")
-    print(f"Comparison plot saved in: {comparison_plot}")
+    print(f"Demand plot saved in: {demand_plot}")
+    print(f"LP relaxation plot saved in: {relaxation_plot}")
 
     # plot milp baseline solution for Q=11 and Q=22 and concentrated solution for Q=11
     plot_solution(

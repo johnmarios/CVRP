@@ -194,7 +194,11 @@ def build_road_routes(routes, schedules, shortest_paths, distance_matrix, travel
 
 def save_road_route_report(road_routes, output_file):
     """Save readable details for the selected real road routes."""
-    lines = ["ATHENS ROUTES ON THE ROAD NETWORK", "=================================", ""]
+    report_lines = [
+        "ATHENS ROUTES ON THE ROAD NETWORK",
+        "=================================",
+        "",
+    ]
 
     for vehicle, route_data in road_routes.items():
         hops = route_data["hops"]
@@ -202,7 +206,7 @@ def save_road_route_report(road_routes, output_file):
         base_time = sum(float(hop["base_travel_time"]) for hop in hops)
         vehicle_time = sum(hop["arrival"] - hop["departure"] for hop in hops)
 
-        lines.extend(
+        report_lines.extend(
             [
                 vehicle,
                 "-" * len(vehicle),
@@ -216,7 +220,7 @@ def save_road_route_report(road_routes, output_file):
         )
 
         for hop in hops:
-            lines.append(
+            report_lines.append(
                 f"  {hop['origin']:>3} -> {hop['destination']:<3} | "
                 f"{hop['distance_km']:6.3f} km | "
                 f"{hop['arrival'] - hop['departure']:6.2f} min | "
@@ -227,9 +231,10 @@ def save_road_route_report(road_routes, output_file):
             f"C{service['customer']} at t={service['service_start']:.1f}"
             for service in route_data["services"]
         )
-        lines.extend([f"Service starts: {service_text}", ""])
+        report_lines.extend([f"Service starts: {service_text}", ""])
 
+    report_str = "\n".join(report_lines)
     output_file = Path(output_file)
     output_file.parent.mkdir(parents=True, exist_ok=True)
-    output_file.write_text("\n".join(lines), encoding="utf-8")
+    output_file.write_text(report_str, encoding="utf-8")
     return output_file

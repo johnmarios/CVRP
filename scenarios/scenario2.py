@@ -30,9 +30,8 @@ TRUCK_DISTANCE_COSTS = [0.95, 0.80, 0.70, 0.60, 0.55, 0.53, 0.52, 0.50]
 SWITCH_TEST_FIXED_COST = 21.0
 
 
-# -----------------------------------------------------------------------------
-# 1. INPUT DATA AND FLEET AVAILABILITY
-# -----------------------------------------------------------------------------
+
+# input data and fleet availability
 
 def load_inputs():
     """Load the four fleet scenarios and the common vehicle parameters."""
@@ -53,7 +52,7 @@ def get_fleet_counts(scenario):
 
 
 def fleet_text(counts):
-    """Convert vehicle counts to a short readable description."""
+    """Convert vehicle counts to a short readable description, vehicle_type=count."""
     selected = [
         f"{vehicle_type}={count}"
         for vehicle_type, count in counts.items()
@@ -62,12 +61,10 @@ def fleet_text(counts):
     return ", ".join(selected) or "none"
 
 
-# -----------------------------------------------------------------------------
-# 2. SOLVE ONE FLEET CASE
-# -----------------------------------------------------------------------------
-
+# solve one fleet case and extract the results
 def add_symmetry_breaking(model, variables, scenario):
-    """Activate identical vehicles of each type in a fixed order."""
+    """Activate identical vehicles of each type in a fixed order, by adding constraints 
+    of the form z_1 >= z_2 >= z_3 ..."""
     for vehicle_type in scenario["vehicle_info"]:
         vehicles = sorted(
             vehicle
@@ -88,14 +85,13 @@ def solve_model(model):
 
 def create_result(case_name, scenario, vehicle_types):
     """Create an empty result containing the common case information."""
+    # available vehicles, capacity and total demand
     available_counts = get_fleet_counts(scenario)
     available_capacity = sum(
         count * vehicle_types[vehicle_type]["capacity"]
         for vehicle_type, count in available_counts.items()
     )
-    total_demand = sum(
-        customer["demand"] for customer in scenario["customers"].values()
-    )
+    total_demand = sum(customer["demand"] for customer in scenario["customers"].values())
 
     return {
         "case": case_name,
@@ -416,13 +412,16 @@ def build_setup_section(base_scenario, vehicle_types):
         for customer in base_scenario["customers"].values()
     )
 
-    return f"""EXPERIMENTAL SETUP
-------------------
-Customers: {len(base_scenario['customers'])}
-Total demand: {total_demand}
-Vehicle travel-time factors: disabled to isolate fleet capacity and cost
-
-{make_text_table(build_vehicle_table(vehicle_types), columns)}"""
+    report_str = (
+        "EXPERIMENTAL SETUP\n"
+        "------------------\n"
+        f"Customers: {len(base_scenario['customers'])}\n"
+        f"Total demand: {total_demand}\n"
+        "Vehicle travel-time factors: disabled to isolate fleet capacity and cost\n"
+        "\n"
+        + make_text_table(build_vehicle_table(vehicle_types), columns)
+    )
+    return report_str
 
 
 def build_fleet_section(fleet_results):
@@ -450,13 +449,17 @@ def build_fleet_section(fleet_results):
             ]
         )
 
-    return f"""A. FLEET COMPOSITION COMPARISON
--------------------------------
-{make_text_table(fleet_results, columns)}
-
-ROUTE DETAILS
--------------
-{chr(10).join(route_lines).rstrip()}"""
+    route_text = "\n".join(route_lines).rstrip()
+    report_str = (
+        "A. FLEET COMPOSITION COMPARISON\n"
+        "-------------------------------\n"
+        + make_text_table(fleet_results, columns) + "\n"
+        "\n"
+        "ROUTE DETAILS\n"
+        "-------------\n"
+        f"{route_text}"
+    )
+    return report_str
 
 
 def build_sensitivity_section(sensitivity):
@@ -477,25 +480,30 @@ def build_sensitivity_section(sensitivity):
     ]
     switch = sensitivity["switch_result"]
 
-    return f"""B. TRUCK COST SENSITIVITY
--------------------------
-Exact critical fixed cost: {sensitivity['critical_fixed_cost']:.4f}
-Exact critical distance cost: {sensitivity['critical_distance_cost']:.4f}
-
-The fixed-cost threshold is obtained from:
-F_truck* = C_two_vans - c_distance_truck*D_truck - c_time_truck*T_truck.
-
-The distance-cost threshold is obtained from:
-c_distance_truck* = (C_two_vans - F_truck - c_time_truck*T_truck) / D_truck.
-
-FIXED-COST SENSITIVITY
-{make_text_table(sensitivity['fixed_results'], fixed_columns)}
-
-DISTANCE-COST SENSITIVITY
-{make_text_table(sensitivity['distance_results'], distance_columns)}
-
-Solver validation
-After setting the truck fixed cost to {SWITCH_TEST_FIXED_COST:g}, the free-choice MILP selects {switch['selected_fleet']} with total cost {switch['objective']:.4f}."""
+    report_str = (
+        "B. TRUCK COST SENSITIVITY\n"
+        "-------------------------\n"
+        f"Exact critical fixed cost: {sensitivity['critical_fixed_cost']:.4f}\n"
+        f"Exact critical distance cost: {sensitivity['critical_distance_cost']:.4f}\n"
+        "\n"
+        "The fixed-cost threshold is obtained from:\n"
+        "F_truck* = C_two_vans - c_distance_truck*D_truck - c_time_truck*T_truck.\n"
+        "\n"
+        "The distance-cost threshold is obtained from:\n"
+        "c_distance_truck* = (C_two_vans - F_truck - c_time_truck*T_truck) / D_truck.\n"
+        "\n"
+        "FIXED-COST SENSITIVITY\n"
+        + make_text_table(sensitivity['fixed_results'], fixed_columns) + "\n"
+        "\n"
+        "DISTANCE-COST SENSITIVITY\n"
+        + make_text_table(sensitivity['distance_results'], distance_columns) + "\n"
+        "\n"
+        "Solver validation\n"
+        f"After setting the truck fixed cost to {SWITCH_TEST_FIXED_COST:g}, "
+        f"the free-choice MILP selects {switch['selected_fleet']} "
+        f"with total cost {switch['objective']:.4f}."
+    )
+    return report_str
 
 
 def build_report(base_scenario, vehicle_types, fleet_results, sensitivity):
@@ -510,7 +518,8 @@ def build_report(base_scenario, vehicle_types, fleet_results, sensitivity):
         build_fleet_section(fleet_results),
         build_sensitivity_section(sensitivity),
     ]
-    return "\n\n".join(sections) + "\n"
+    report_str = "\n\n".join(sections) + "\n"
+    return report_str
 
 
 # -----------------------------------------------------------------------------

@@ -234,16 +234,9 @@ def plot_capacity_results(results, capacities, output_file, show=False):
     plt.close(fig)
 
 
-def plot_scenario1_comparison(
-    demand_profiles,
-    capacity,
-    relaxation_results,
-    output_file,
-    show=False,
-):
-    """Plot demand concentration and the MILP-LP comparison."""
-    fig, (ax_demands, ax_relaxation) = plt.subplots(1, 2, figsize=(12, 4.8))
-
+def plot_demand_distribution(demand_profiles, capacity, output_file, show=False):
+    """Compare the baseline and concentrated demand profiles."""
+    fig, ax_demands = plt.subplots(figsize=(8, 4.8))
     customers = list(range(1, len(next(iter(demand_profiles.values()))) + 1))
     width = 0.36
     profile_names = list(demand_profiles)
@@ -271,65 +264,6 @@ def plot_scenario1_comparison(
     ax_demands.grid(axis="y", alpha=0.3)
     ax_demands.legend()
 
-    positions = list(range(len(relaxation_results)))
-    milp_values = [
-        result["milp_objective"] or 0
-        for result in relaxation_results
-    ]
-    lp_values = [
-        result["lp_objective"] or 0
-        for result in relaxation_results
-    ]
-    bars_milp = ax_relaxation.bar(
-        [position - width / 2 for position in positions],
-        milp_values,
-        width,
-        label="MILP",
-    )
-    bars_lp = ax_relaxation.bar(
-        [position + width / 2 for position in positions],
-        lp_values,
-        width,
-        label="LP relaxation",
-    )
-
-    for bars, values in ((bars_milp, milp_values), (bars_lp, lp_values)):
-        for bar, value in zip(bars, values):
-            if value:
-                ax_relaxation.text(
-                    bar.get_x() + bar.get_width() / 2,
-                    value,
-                    f"{value:.2f}",
-                    ha="center",
-                    va="bottom",
-                    fontsize=8,
-                )
-
-    maximum_value = max(milp_values + lp_values)
-    for position, result in zip(positions, relaxation_results):
-        if result["milp_status"] != "Optimal":
-            ax_relaxation.text(
-                position - width / 2,
-                maximum_value * 0.03,
-                "Infeasible",
-                color="red",
-                ha="center",
-                va="bottom",
-                rotation=90,
-                fontsize=8,
-            )
-
-    ax_relaxation.set_title("MILP and LP relaxation")
-    ax_relaxation.set_ylabel("Objective value")
-    ax_relaxation.set_xticks(positions)
-    ax_relaxation.set_xticklabels(
-        [result["short_name"] for result in relaxation_results],
-        rotation=15,
-        ha="right",
-    )
-    ax_relaxation.grid(axis="y", alpha=0.3)
-    ax_relaxation.legend()
-
     fig.tight_layout()
     output_file = Path(output_file)
     output_file.parent.mkdir(parents=True, exist_ok=True)
@@ -340,7 +274,7 @@ def plot_scenario1_comparison(
     plt.close(fig)
 
 
-def plot_relaxation_results(results, output_file):
+def plot_relaxation_results(results, output_file, show=False):
     """Compare MILP objectives with their LP lower bounds."""
     positions = list(range(len(results)))
     width = 0.36
@@ -396,7 +330,12 @@ def plot_relaxation_results(results, output_file):
     ax.legend()
 
     fig.tight_layout()
+    output_file = Path(output_file)
+    output_file.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output_file, dpi=180, bbox_inches="tight")
+
+    if show:
+        plt.show()
     plt.close(fig)
 
 

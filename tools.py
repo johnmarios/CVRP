@@ -99,10 +99,11 @@ def make_text_table(results, columns):
 
 def save_text_report(results, columns, title, output_file):
     """Save results in a simple presentation-ready text report."""
-    report = [title, "=" * len(title), "", make_text_table(results, columns)]
+    report_lines = [title, "=" * len(title), "", make_text_table(results, columns)]
 
+    # Add route details if available
     if "routes" in results[0]:
-        report.extend(["", "ROUTE DETAILS", "=" * 13])
+        report_lines.extend(["", "ROUTE DETAILS", "=" * 13])
 
         for result in results:
             if "demand_profile" in result:
@@ -114,24 +115,25 @@ def save_text_report(results, columns, title, output_file):
             else:
                 label = result.get("scenario", "solution")
 
-            report.append(f"\nCase: {label}")
-            report.append(f"Routes: {format_routes(result['routes']) or '-'}")
-            report.append(f"Loads:  {format_loads(result['loads']) or '-'}")
+            report_lines.append(f"\nCase: {label}")
+            report_lines.append(f"Routes: {format_routes(result['routes']) or '-'}")
+            report_lines.append(f"Loads:  {format_loads(result['loads']) or '-'}")
 
             if "schedules" in result:
-                report.append(f"Times:  {result['schedules'] or '-'}")
+                report_lines.append(f"Times:  {result['schedules'] or '-'}")
 
+    report_str = "\n".join(report_lines) + "\n"
     output_file = Path(output_file)
     output_file.parent.mkdir(parents=True, exist_ok=True)
-    output_file.write_text("\n".join(report) + "\n", encoding="utf-8")
+    output_file.write_text(report_str, encoding="utf-8")
     return output_file
 
 def append_text_report(results, columns, title, output_file):
     """Append results to an existing text report."""
-    report = [title, "=" * len(title), "", make_text_table(results, columns)]
+    report_lines = [title, "=" * len(title), "", make_text_table(results, columns)]
 
     if "routes" in results[0]:
-        report.extend(["", "ROUTE DETAILS", "=" * 13])
+        report_lines.extend(["", "ROUTE DETAILS", "=" * 13])
 
         for result in results:
             if "demand_profile" in result:
@@ -143,23 +145,24 @@ def append_text_report(results, columns, title, output_file):
             else:
                 label = result.get("scenario", "solution")
 
-            report.append(f"\nCase: {label}")
-            report.append(f"Routes: {format_routes(result['routes']) or '-'}")
-            report.append(f"Loads:  {format_loads(result['loads']) or '-'}")
+            report_lines.append(f"\nCase: {label}")
+            report_lines.append(f"Routes: {format_routes(result['routes']) or '-'}")
+            report_lines.append(f"Loads:  {format_loads(result['loads']) or '-'}")
 
             if "schedules" in result:
-                report.append(f"Times:  {result['schedules'] or '-'}")
+                report_lines.append(f"Times:  {result['schedules'] or '-'}")
 
+    report_str = "\n".join(report_lines) + "\n"
     output_file = Path(output_file)
     output_file.parent.mkdir(parents=True, exist_ok=True)
     with output_file.open("a", encoding="utf-8") as file:
-        file.write("\n".join(report) + "\n")
+        file.write(report_str)
     return output_file
 
 def save_solver_result(result, variables, output_file, schedule_rows=None):
     """Save the selected solver decisions and routes for one case."""
     title = f"SOLVER RESULT - {result['case'].upper()}"
-    lines = [title, "=" * len(title), ""]
+    report_lines = [title, "=" * len(title), ""]
 
     summary_fields = [
         ("status", "Status"),
@@ -186,16 +189,16 @@ def save_solver_result(result, variables, output_file, schedule_rows=None):
     for key, label in summary_fields:
         if key in result:
             value = result[key]
-            lines.append(f"{label}: {value if value not in ('', None) else '-'}")
+            report_lines.append(f"{label}: {value if value not in ('', None) else '-'}")
 
-    lines.extend(["", "ROUTES", "------"])
-    lines.extend(result.get("routes", "").split("; ") if result.get("routes") else ["-"])
-    lines.extend(["", "LOADS", "-----"])
-    lines.extend(result.get("loads", "").split("; ") if result.get("loads") else ["-"])
+    report_lines.extend(["", "ROUTES", "------"])
+    report_lines.extend(result.get("routes", "").split("; ") if result.get("routes") else ["-"])
+    report_lines.extend(["", "LOADS", "-----"])
+    report_lines.extend(result.get("loads", "").split("; ") if result.get("loads") else ["-"])
 
     if result.get("depot_details"):
-        lines.extend(["", "DEPOT DETAILS", "-------------"])
-        lines.extend(result["depot_details"].split("; "))
+        report_lines.extend(["", "DEPOT DETAILS", "-------------"])
+        report_lines.extend(result["depot_details"].split("; "))
 
     if result["status"].startswith(("Optimal", "Feasible")):
         active = [
@@ -214,9 +217,9 @@ def save_solver_result(result, variables, output_file, schedule_rows=None):
             if pulp.value(variables["x"][first, second, vehicle]) > 0.5
         ]
 
-        lines.extend(["", "ACTIVE VEHICLES", "---------------", *active])
-        lines.extend(["", "CUSTOMER ASSIGNMENTS", "--------------------", *assignments])
-        lines.extend(["", "SELECTED ARCS", "-------------", *arcs])
+        report_lines.extend(["", "ACTIVE VEHICLES", "---------------", *active])
+        report_lines.extend(["", "CUSTOMER ASSIGNMENTS", "--------------------", *assignments])
+        report_lines.extend(["", "SELECTED ARCS", "-------------", *arcs])
 
         if schedule_rows:
             schedule_results = [
@@ -238,7 +241,7 @@ def save_solver_result(result, variables, output_file, schedule_rows=None):
                 ("service_start", "Service t"),
                 ("waiting", "Waiting"),
             ]
-            lines.extend(
+            report_lines.extend(
                 [
                     "",
                     "EARLIEST VALID SERVICE SCHEDULE",
@@ -247,9 +250,10 @@ def save_solver_result(result, variables, output_file, schedule_rows=None):
                 ]
             )
 
+    report_str = "\n".join(report_lines) + "\n"
     output_file = Path(output_file)
     output_file.parent.mkdir(parents=True, exist_ok=True)
-    output_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    output_file.write_text(report_str, encoding="utf-8")
     return output_file
 
 
@@ -312,4 +316,3 @@ def lp_relaxation(scenario, vehicle_types, capacity):
         "fractional_z": fractional_counts["z"],
         "fractional_examples": "; ".join(example_text) or "-",
     }
-
