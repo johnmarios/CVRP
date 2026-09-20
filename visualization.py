@@ -183,9 +183,9 @@ def plot_solution(
 
 
 def plot_capacity_results(results, capacities, output_file, show=False):
-    """Plot objective value and required vehicles for each capacity."""
+    """Plot the objective value for each vehicle capacity."""
     optimal = [result for result in results if result["status"] == "Optimal"]
-    fig, (ax_cost, ax_vehicles) = plt.subplots(2, 1, figsize=(8, 7), sharex=True)
+    fig, ax_cost = plt.subplots(figsize=(8, 4.5))
 
     ax_cost.plot(
         [result["capacity"] for result in optimal],
@@ -222,32 +222,9 @@ def plot_capacity_results(results, capacities, output_file, show=False):
     if one_vehicle_cases:
         ax_cost.axvline(min(one_vehicle_cases), color="gray", linestyle=":", alpha=0.7)
 
-    ax_vehicles.step(
-        [result["capacity"] for result in optimal],
-        [result["active_vehicles"] for result in optimal],
-        where="mid",
-        marker="o",
-        label="Active vehicles"
-    )
-    ax_vehicles.step(
-        [result["capacity"] for result in results],
-        [result["capacity_lower_bound"] for result in results],
-        where="mid",
-        linestyle="--",
-        label="Capacity lower bound"
-    )
-    available_vehicles = results[0]["available_vehicles"]
-    ax_vehicles.axhline(
-        available_vehicles,
-        color="gray",
-        linestyle=":",
-        label=f"Available vehicles = {available_vehicles}",
-    )
-    ax_vehicles.set_xlabel("Vehicle capacity Q")
-    ax_vehicles.set_ylabel("Vehicles")
-    ax_vehicles.set_xticks(capacities)
-    ax_vehicles.grid(alpha=0.3)
-    ax_vehicles.legend()
+    ax_cost.set_xlabel("Vehicle capacity Q")
+    ax_cost.set_xticks(capacities)
+    ax_cost.set_xlim(min(capacities) - 1, max(capacities) + 0.5)
 
     fig.tight_layout()
     fig.savefig(output_file, dpi=180, bbox_inches="tight")
@@ -423,55 +400,6 @@ def plot_relaxation_results(results, output_file):
     plt.close(fig)
 
 
-def plot_fleet_results(results, output_file, show=False):
-    """Compare the three cost components of the fleet cases."""
-    labels = [result["case"] for result in results]
-    fixed_costs = [result["fixed_cost"] or 0 for result in results]
-    distance_costs = [result["distance_cost"] or 0 for result in results]
-    time_costs = [result["time_cost"] or 0 for result in results]
-
-    fig, ax = plt.subplots(figsize=(10, 5.5))
-    fixed_bars = ax.bar(labels, fixed_costs, label="Fixed cost")
-    distance_bars = ax.bar(
-        labels,
-        distance_costs,
-        bottom=fixed_costs,
-        label="Distance cost"
-    )
-    time_bars = ax.bar(
-        labels,
-        time_costs,
-        bottom=[fixed + distance for fixed, distance in zip(fixed_costs, distance_costs)],
-        label="Travel-time cost",
-    )
-
-    for position, (fixed_cost, distance_cost, time_cost) in enumerate(
-        zip(fixed_costs, distance_costs, time_costs)
-    ):
-        total_cost = fixed_cost + distance_cost + time_cost
-        if total_cost:
-            ax.text(
-                position,
-                total_cost,
-                f"{total_cost:.2f}",
-                ha="center",
-                va="bottom"
-            )
-
-    ax.set_title("Fleet composition cost comparison")
-    ax.set_ylabel("Total cost")
-    ax.grid(axis="y", alpha=0.3)
-    ax.legend(handles=[fixed_bars, distance_bars, time_bars])
-
-    fig.tight_layout()
-    output_file = Path(output_file)
-    output_file.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(output_file, dpi=180, bbox_inches="tight")
-    if show:
-        plt.show()
-    plt.close(fig)
-
-
 def plot_truck_cost_sensitivity(
     fixed_cost_results,
     distance_cost_results,
@@ -550,119 +478,43 @@ def plot_truck_cost_relaxation(
 
 
 def plot_time_window_results(results, output_file, show=False):
-    """Compare objective value and active vehicles across time-window cases."""
+    """Compare total cost across the time-window cases."""
     positions = list(range(len(results)))
     labels = [result["short_name"] for result in results]
-    fig, (ax_cost, ax_vehicles) = plt.subplots(2, 1, figsize=(9, 7), sharex=True)
+    fig, ax = plt.subplots(figsize=(8, 4.8))
 
-    optimal = [result for result in results if result["status"] == "Optimal"]
-    optimal_positions = [results.index(result) for result in optimal]
-
-    ax_cost.bar(
-        optimal_positions,
-        [result["objective"] for result in optimal],
-        color="tab:blue"
+    bars = ax.bar(
+        positions,
+        [result["objective"] for result in results],
+        color="tab:blue",
     )
-    for position, result in zip(optimal_positions, optimal):
-        ax_cost.text(
-            position,
-            result["objective"],
+    for bar, result in zip(bars, results):
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height(),
             f"{result['objective']:.2f}",
             ha="center",
-            va="bottom"
+            va="bottom",
         )
 
-    for position, result in zip(positions, results):
-        if result["status"] != "Optimal":
-            ax_cost.text(
-                position,
-                0.05,
-                "Infeasible",
-                color="red",
-                ha="center",
-                rotation=90,
-                transform=ax_cost.get_xaxis_transform()
-            )
-
-    ax_cost.set_title("Effect of time windows")
-    ax_cost.set_ylabel("Total cost")
-    ax_cost.grid(axis="y", alpha=0.3)
-
-    ax_vehicles.plot(
-        optimal_positions,
-        [result["active_vehicles"] for result in optimal],
-        marker="o",
-        label="Active vehicles"
-    )
-    ax_vehicles.plot(
-        positions,
-        [result["capacity_lower_bound"] for result in results],
-        marker="o",
-        linestyle="--",
-        label="Capacity lower bound"
-    )
-    ax_vehicles.plot(
-        positions,
-        [result["temporal_lower_bound"] for result in results],
-        marker="o",
-        linestyle=":",
-        label="Temporal lower bound"
-    )
-    ax_vehicles.set_ylabel("Vehicles")
-    ax_vehicles.set_xticks(positions)
-    ax_vehicles.set_xticklabels(labels)
-    ax_vehicles.set_ylim(bottom=0)
-    ax_vehicles.grid(alpha=0.3)
-    ax_vehicles.legend()
+    ax.set_title("Effect of time windows")
+    ax.set_ylabel("Total cost")
+    ax.set_xticks(positions)
+    ax.set_xticklabels(labels)
+    ax.set_ylim(0, max(result["objective"] for result in results) * 1.15)
+    ax.grid(axis="y", alpha=0.3)
 
     fig.tight_layout()
     output_file = Path(output_file)
     output_file.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(output_file, dpi=180, bbox_inches="tight")
-    if show:
-        plt.show()
-    plt.close(fig)
-
-
-def plot_time_window_schedule(schedule_rows, output_file, show=False):
-    """Plot service starts inside their allowed time windows."""
-    vehicles = sorted({row["vehicle"] for row in schedule_rows})
-    vehicle_positions = {
-        vehicle: position for position, vehicle in enumerate(vehicles)
-    }
-
-    fig, ax = plt.subplots(figsize=(10, 4.5))
-    for row in schedule_rows:
-        y_position = vehicle_positions[row["vehicle"]]
-        ax.plot(
-            [row["window_start"], row["window_end"]],
-            [y_position, y_position],
-            color="lightgray",
-            linewidth=10,
-            solid_capstyle="butt"
+    output_file.unlink(missing_ok=True)
+    with output_file.open("wb") as image_file:
+        fig.savefig(
+            image_file,
+            format="png",
+            dpi=180,
+            bbox_inches="tight",
         )
-        ax.scatter(row["service_start"], y_position, color="tab:blue", zorder=3)
-        ax.annotate(
-            f"C{row['customer']}\n{row['service_start']:.1f}",
-            (row["service_start"], y_position),
-            xytext=(0, 9),
-            textcoords="offset points",
-            ha="center",
-            fontsize=9
-        )
-
-    ax.set_title("Tight feasible schedule")
-    ax.set_xlabel("Time")
-    ax.set_yticks(range(len(vehicles)))
-    ax.set_yticklabels(vehicles)
-    ax.set_ylim(-0.4, len(vehicles) - 0.4 + 0.8)
-    ax.grid(axis="x", alpha=0.3)
-    ax.set_axisbelow(True)
-
-    fig.tight_layout()
-    output_file = Path(output_file)
-    output_file.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(output_file, dpi=180, bbox_inches="tight")
     if show:
         plt.show()
     plt.close(fig)
@@ -934,68 +786,6 @@ def plot_time_window_animation(
     animation.save(output_file, writer=PillowWriter(fps=frames_per_second), dpi=120)
     plt.close(fig)
     return final_time, frame_count
-
-
-def plot_multiple_depot_results(results, output_file, show=False):
-    """Compare cost and distance across the multiple-depot cases."""
-    positions = list(range(len(results)))
-    labels = [result["short_name"] for result in results]
-    fixed_costs = [result["fixed_cost"] for result in results]
-    distance_costs = [result["distance_cost"] for result in results]
-    time_costs = [result["time_cost"] for result in results]
-    distances = [result["total_distance"] for result in results]
-
-    fig, (ax_cost, ax_distance) = plt.subplots(2, 1, figsize=(9, 7), sharex=True)
-
-    ax_cost.bar(positions, fixed_costs, label="Fixed cost")
-    ax_cost.bar(
-        positions,
-        distance_costs,
-        bottom=fixed_costs,
-        label="Distance cost"
-    )
-    ax_cost.bar(
-        positions,
-        time_costs,
-        bottom=[fixed + distance for fixed, distance in zip(fixed_costs, distance_costs)],
-        label="Travel-time cost"
-    )
-    for position, result in zip(positions, results):
-        ax_cost.text(
-            position,
-            result["objective"],
-            f"{result['objective']:.2f}",
-            ha="center",
-            va="bottom"
-        )
-
-    ax_cost.set_title("Effect of depot location and fleet allocation")
-    ax_cost.set_ylabel("Total cost")
-    ax_cost.grid(axis="y", alpha=0.3)
-    ax_cost.legend()
-
-    bars = ax_distance.bar(positions, distances, color="tab:green")
-    for bar, distance in zip(bars, distances):
-        ax_distance.text(
-            bar.get_x() + bar.get_width() / 2,
-            distance,
-            f"{distance:.2f}",
-            ha="center",
-            va="bottom"
-        )
-
-    ax_distance.set_ylabel("Total distance")
-    ax_distance.set_xticks(positions)
-    ax_distance.set_xticklabels(labels)
-    ax_distance.grid(axis="y", alpha=0.3)
-
-    fig.tight_layout()
-    output_file = Path(output_file)
-    output_file.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(output_file, dpi=180, bbox_inches="tight")
-    if show:
-        plt.show()
-    plt.close(fig)
 
 
 def plot_scenario_demo(scenario):

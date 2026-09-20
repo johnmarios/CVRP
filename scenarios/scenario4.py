@@ -12,7 +12,7 @@ if str(PROJECT_DIRECTORY) not in sys.path:
 
 from model import build_model, get_d_ij, get_t_ijk
 from tools import extract_route, format_loads, format_routes, get_output_directory, make_text_table, readjson
-from visualization import plot_multiple_depot_results, plot_solution
+from visualization import plot_solution
 
 
 DEPOT_CASES = {
@@ -362,11 +362,8 @@ def save_report(report, output_directory):
     return report_file
 
 
-def save_plots(results, solved_cases, vehicle_types, output_directory, show):
-    """Save the comparison plot and the three informative route plots."""
-    comparison_file = output_directory / "depot_cost_comparison.png"
-    plot_multiple_depot_results(results, comparison_file, show=show)
-
+def save_route_plots(solved_cases, vehicle_types, output_directory, show):
+    """Save the route plot of each depot case."""
     route_files = {}
     for case_name, file_name in (
         ("Central depot", "route_central_depot.png"),
@@ -385,7 +382,7 @@ def save_plots(results, solved_cases, vehicle_types, output_directory, show):
         )
         route_files[case_name] = route_file
 
-    return comparison_file, route_files
+    return route_files
 
 
 # -----------------------------------------------------------------------------
@@ -404,8 +401,7 @@ def main():
     )
     report = build_report(results)
     report_file = save_report(report, output_directory)
-    comparison_file, route_files = save_plots(
-        results,
+    route_files = save_route_plots(
         solved_cases,
         vehicle_types,
         output_directory,
@@ -414,7 +410,6 @@ def main():
 
     print("\n" + report)
     print(f"Results saved in: {report_file}")
-    print(f"Comparison plot saved in: {comparison_file}")
     for case_name, route_file in route_files.items():
         print(f"{case_name} route saved in: {route_file}")
 

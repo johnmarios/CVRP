@@ -12,14 +12,13 @@ if str(PROJECT_DIRECTORY) not in sys.path:
 
 from model import build_model, get_d_ij, get_t_ijk
 from tools import extract_route, format_loads, format_routes, get_output_directory, make_text_table, readjson
-from visualization import plot_solution, plot_time_window_results, plot_time_window_schedule
+from visualization import plot_solution, plot_time_window_results
 
 
 TIME_WINDOW_CASES = {
     "No time windows": "data/scenario3/no_windows.json",
     "Wide time windows": "data/scenario3/wide_windows.json",
     "Tight feasible": "data/scenario3/tight_feasible.json",
-    "Temporal infeasible": "data/scenario3/temporal_infeasible.json",
 }
 
 
@@ -28,7 +27,7 @@ TIME_WINDOW_CASES = {
 # -----------------------------------------------------------------------------
 
 def load_inputs():
-    """Load the four time-window scenarios and the vehicle parameters."""
+    """Load the three time-window scenarios and the vehicle parameters."""
     scenarios = {
         case_name: readjson(file_name)
         for case_name, file_name in TIME_WINDOW_CASES.items()
@@ -70,19 +69,11 @@ def create_result(case_name, scenario, vehicle_types):
     temporal_lower_bound = scenario["temporal_lower_bound"]
     available_vans = get_number_of_vans(scenario)
 
-    feedback = "The temporal lower bound does not exceed the available fleet."
-    if temporal_lower_bound > available_vans:
-        feedback = (
-            f"Temporal lower bound {temporal_lower_bound} exceeds "
-            f"the {available_vans} available vans."
-        )
-
     return {
         "case": case_name,
         "short_name": scenario["short_name"],
         "windows": scenario["window_summary"],
         "status": "Not solved",
-        "feedback": feedback,
         "available_vehicles": available_vans,
         "active_vehicles": None,
         "active_capacity": None,
@@ -256,7 +247,7 @@ def solve_time_window_case(case_name, scenario, vehicle_types):
 # -----------------------------------------------------------------------------
 
 def run_time_window_experiment(scenarios, vehicle_types):
-    """Solve the four time-window cases."""
+    """Solve the three time-window cases."""
     results = []
     solved_cases = {}
 
@@ -386,7 +377,7 @@ def save_report(report, output_directory):
 
 
 def save_summary_plots(results, solved_cases, vehicle_types, output_directory, show):
-    """Save the comparison, reference route and tight-feasible figures."""
+    """Save the comparison and route figures."""
     comparison_file = output_directory / "time_window_comparison.png"
     plot_time_window_results(results, comparison_file, show=show)
 
@@ -412,11 +403,7 @@ def save_summary_plots(results, solved_cases, vehicle_types, output_directory, s
         )
         route_files[case_name] = route_file
 
-    schedule_file = output_directory / "schedule_tight_feasible.png"
-    plot_time_window_schedule(
-        solved_cases["Tight feasible"][2], schedule_file, show=show
-    )
-    return comparison_file, route_files, schedule_file
+    return comparison_file, route_files
 
 
 # -----------------------------------------------------------------------------
@@ -435,7 +422,7 @@ def main():
     )
     report = build_report(results, solved_cases)
     report_file = save_report(report, output_directory)
-    comparison_file, route_files, schedule_file = save_summary_plots(
+    comparison_file, route_files = save_summary_plots(
         results,
         solved_cases,
         vehicle_types,
@@ -446,7 +433,6 @@ def main():
     print("\n" + report)
     print(f"Results saved in: {report_file}")
     print(f"Comparison plot saved in: {comparison_file}")
-    print(f"Schedule plot saved in: {schedule_file}")
     for case_name, route_file in route_files.items():
         print(f"{case_name} route saved in: {route_file}")
 

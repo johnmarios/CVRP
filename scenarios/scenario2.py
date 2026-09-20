@@ -13,7 +13,6 @@ if str(PROJECT_DIRECTORY) not in sys.path:
 from model import build_model, get_d_ij, get_t_ijk
 from tools import extract_route, format_loads, format_routes, get_output_directory, make_text_table, readjson
 from visualization import (
-    plot_fleet_results,
     plot_solution,
     plot_truck_cost_sensitivity,
 )
@@ -525,16 +524,8 @@ def save_report(report, output_directory):
     return report_file
 
 
-def save_summary_plots(
-    fleet_results,
-    sensitivity,
-    output_directory,
-    show_plots,
-):
-    """Save the fleet-comparison and cost-sensitivity plots."""
-    fleet_plot = output_directory / "fleet_cost_comparison.png"
-    plot_fleet_results(fleet_results, fleet_plot, show=show_plots)
-
+def save_sensitivity_plot(sensitivity, output_directory, show_plots):
+    """Save the truck-cost sensitivity plot."""
     sensitivity_plot = output_directory / "truck_cost_sensitivity.png"
     plot_truck_cost_sensitivity(
         sensitivity["fixed_results"],
@@ -544,7 +535,7 @@ def save_summary_plots(
         sensitivity_plot,
         show=show_plots,
     )
-    return fleet_plot, sensitivity_plot
+    return sensitivity_plot
 
 
 def save_route_plots(solved_cases, vehicle_types, output_directory, show_plots):
@@ -598,8 +589,7 @@ def main():
         sensitivity,
     )
     report_file = save_report(report, output_directory)
-    fleet_plot, sensitivity_plot = save_summary_plots(
-        fleet_results,
+    sensitivity_plot = save_sensitivity_plot(
         sensitivity,
         output_directory,
         show_plots,
@@ -613,7 +603,6 @@ def main():
 
     print("\n" + report)
     print(f"Results saved in: {report_file}")
-    print(f"Fleet plot saved in: {fleet_plot}")
     print(f"Sensitivity plot saved in: {sensitivity_plot}")
     for case_name, route_file in route_files.items():
         print(f"{case_name} route saved in: {route_file}")
