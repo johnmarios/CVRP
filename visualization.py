@@ -994,3 +994,52 @@ def plot_multiple_depot_results(results, output_file, show=False):
     if show:
         plt.show()
     plt.close(fig)
+
+
+def plot_scenario_demo(scenario):
+    """Display the depot and customer locations without solving the scenario."""
+    fig, ax = plt.subplots(figsize=(8, 6))
+
+    for index, (depot, data) in enumerate(scenario["depots"].items()):
+        x, y = data["coordinates"]
+        ax.scatter(
+            x,
+            y,
+            color="orange",
+            marker="s",
+            s=120,
+            edgecolors="black",
+            label="Depot" if index == 0 else None,
+            zorder=3,
+        )
+        ax.annotate(depot, (x, y), xytext=(6, 6), textcoords="offset points")
+
+    for index, (customer, data) in enumerate(scenario["customers"].items()):
+        x, y = data["coordinates"]
+        ax.scatter(
+            x,
+            y,
+            color="white",
+            edgecolors="black",
+            linewidths=1.2,
+            marker="o",
+            s=70,
+            label="Customer" if index == 0 else None,
+            zorder=3,
+        )
+        ax.annotate(
+            f"C{customer} (q={data['demand']})",
+            (x, y),
+            xytext=(6, -12),
+            textcoords="offset points",
+        )
+
+    ax.set_title(f"Scenario: {scenario['name']}")
+    ax.set_xlabel("X coordinate")
+    ax.set_ylabel("Y coordinate")
+    ax.axis("equal")
+    ax.grid(alpha=0.3)
+    ax.legend()
+    fig.tight_layout()
+    plt.show()
+    plt.close(fig)

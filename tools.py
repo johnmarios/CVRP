@@ -312,3 +312,4 @@ def lp_relaxation(scenario, vehicle_types, capacity):
         "fractional_z": fractional_counts["z"],
         "fractional_examples": "; ".join(example_text) or "-",
     }
+

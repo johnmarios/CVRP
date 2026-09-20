@@ -21,7 +21,7 @@ from tools import (
     make_text_table,
     readjson,
 )
-from visualization import plot_capacity_results, plot_scenario1_comparison, plot_solution
+from visualization import plot_capacity_results, plot_scenario1_comparison, plot_solution, plot_scenario_demo
 
 
 CAPACITIES = [8, 10, 11, 12, 16, 21, 22]
@@ -461,12 +461,16 @@ def save_plots(
 # MAIN WORKFLOW
 
 def main():
+
     """Run the experiments and save the presentation-ready outputs."""
     show_plots = "--show" in sys.argv
 
     # set up the input data and output directory
     baseline, concentrated, vehicle_types = load_inputs()
     output_directory = get_output_directory("scenario1")
+
+    plot_scenario_demo(baseline)
+    pass
 
     print("Running capacity sensitivity...")
     capacity_results = run_capacity_experiment(baseline, vehicle_types)
@@ -534,6 +538,7 @@ def main():
         output_directory / "concentrated_q22_solution.png",
         show=show_plots,
     )
+
 
 if __name__ == "__main__":
     main()
