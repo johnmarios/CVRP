@@ -84,18 +84,18 @@ def build_animation_segments(
         }
         segments = []
 
-        for leg in route_data["legs"]:
-            duration = leg["arrival"] - leg["departure"]
+        for hop in route_data["hops"]:
+            duration = hop["arrival"] - hop["departure"]
             if graph is None:
                 coordinates = [
-                    _milp_position(scenario, leg["origin"]),
-                    _milp_position(scenario, leg["destination"]),
+                    _milp_position(scenario, hop["origin"]),
+                    _milp_position(scenario, hop["destination"]),
                 ]
                 elapsed_times = [0.0, duration]
             else:
                 coordinates, elapsed_times = timed_road_points(
                     graph,
-                    leg["road_nodes"],
+                    hop["road_nodes"],
                     factor,
                     duration,
                 )
@@ -103,18 +103,18 @@ def build_animation_segments(
             segments.append(
                 {
                     "kind": "travel",
-                    "start": leg["departure"],
-                    "end": leg["arrival"],
+                    "start": hop["departure"],
+                    "end": hop["arrival"],
                     "coordinates": coordinates,
                     "elapsed_times": elapsed_times,
-                    "label": f"travelling {leg['origin']} -> {leg['destination']}",
+                    "label": f"travelling {hop['origin']} -> {hop['destination']}",
                 }
             )
 
-            if leg["destination"] not in services:
+            if hop["destination"] not in services:
                 continue
 
-            service = services[leg["destination"]]
+            service = services[hop["destination"]]
             customer_position = coordinates[-1]
 
             if service["waiting"] > 0:
@@ -402,6 +402,7 @@ def save_route_animation(
 
     output_file = Path(output_file)
     output_file.parent.mkdir(parents=True, exist_ok=True)
+    output_file.unlink(missing_ok=True)
     animation.save(
         output_file,
         writer=PillowWriter(fps=frames_per_second),

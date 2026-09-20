@@ -17,9 +17,11 @@ def plot_solution(
     show_time_windows=False,
     service_times=None,
     label_positions=None,
+    label_font_size=10,
+    figure_size=(9, 7),
 ):
     """Plot the optimized directed vehicle routes."""
-    fig, ax = plt.subplots(figsize=(9, 7))
+    fig, ax = plt.subplots(figsize=figure_size)
 
     default_label_positions = {
         "1": (-10, 8, "right", "bottom"),
@@ -78,10 +80,10 @@ def plot_solution(
             (x, y),
             xytext=(dx, dy),
             textcoords="offset points",
-            fontsize=10,
+            fontsize=label_font_size,
             ha=horizontal,
             va=vertical,
-            bbox=dict(facecolor="white", edgecolor="none", alpha=0.75, pad=1),
+            bbox=dict(facecolor="white", edgecolor="none", alpha=0.88, pad=0.8),
             zorder=6
         )
 

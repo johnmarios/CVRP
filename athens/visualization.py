@@ -9,18 +9,18 @@ from .helpers import get_shortest_parallel_edge
 
 
 LABEL_POSITIONS = {
-    "1": (-12, 12, "right", "bottom"),
-    "2": (-12, 2, "right", "bottom"),
-    "3": (0, -12, "center", "top"),
-    "4": (10, 4, "left", "bottom"),
-    "5": (8, 5, "left", "bottom"),
-    "6": (10, 8, "left", "bottom"),
-    "7": (8, 6, "left", "bottom"),
-    "8": (8, 6, "left", "bottom"),
-    "9": (8, 6, "left", "bottom"),
-    "10": (8, 6, "left", "bottom"),
-    "11": (8, 6, "left", "bottom"),
-    "12": (8, 6, "left", "bottom"),
+    "1": (-7, -6, "right", "top"),
+    "2": (-7, 7, "right", "bottom"),
+    "3": (-7, 5, "right", "bottom"),
+    "4": (7, 5, "left", "bottom"),
+    "5": (7, 6, "left", "bottom"),
+    "6": (7, -5, "left", "top"),
+    "7": (7, 6, "left", "bottom"),
+    "8": (6, 6, "left", "bottom"),
+    "9": (7, -5, "left", "top"),
+    "10": (7, -5, "left", "top"),
+    "11": (-7, 6, "right", "bottom"),
+    "12": (-7, 6, "right", "bottom"),
 }
 
 
@@ -28,7 +28,14 @@ def save_plot(fig, output_file):
     """Save one plot and close its figure."""
     output_file = Path(output_file)
     output_file.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(output_file, dpi=180, bbox_inches="tight")
+    output_file.unlink(missing_ok=True)
+    with output_file.open("wb") as image_file:
+        fig.savefig(
+            image_file,
+            format="png",
+            dpi=180,
+            bbox_inches="tight",
+        )
     plt.close(fig)
     print(f"Plot saved in: {output_file}")
 
@@ -128,7 +135,7 @@ def plot_road_network(
 
 
 def build_solver_graph(scenario, distance_matrix, travel_time_matrix):
-    """Create the complete directed graph used by the MILP."""
+    """Create the aggregate directed graph used by the MILP vehicles."""
     graph = nx.DiGraph()
 
     # add depots
@@ -137,12 +144,22 @@ def build_solver_graph(scenario, distance_matrix, travel_time_matrix):
 
     # add customers
     for customer, data in scenario["customers"].items():
-        graph.add_node(customer, kind="customer", coordinates=data["coordinates"], demand=data["demand"], service_time=data["service_time"],)
+        graph.add_node(
+            customer,
+            kind="customer",
+            coordinates=data["coordinates"],
+            demand=data["demand"],
+            service_time=data["service_time"],
+            time_window=scenario["time_windows"][customer],
+        )
 
     # add edges
+    depots = set(scenario["depots"])
     for origin, destinations in distance_matrix.items():
         for destination, distance in destinations.items():
-            if origin != destination:
+            if origin != destination and not (
+                origin in depots and destination in depots
+            ):
                 graph.add_edge(origin, destination, distance=distance, travel_time=travel_time_matrix[origin][destination],)
 
     return graph
@@ -154,8 +171,6 @@ def plot_solver_graph(graph, output_file):
 
     depots = [node for node, data in graph.nodes(data=True) if data["kind"] == "depot"]
     customers = [node for node, data in graph.nodes(data=True) if data["kind"] == "customer"]
-
-    labels = {node: node if data["kind"] == "depot" else f"C{node}\nq={data['demand']}" for node, data in graph.nodes(data=True)}
 
     fig, ax = plt.subplots(figsize=(10, 8))
 
@@ -196,10 +211,43 @@ def plot_solver_graph(graph, output_file):
         ax=ax,
     )
 
-    # draw labels 
-    nx.draw_networkx_labels(graph, positions, labels=labels, font_size=8, ax=ax)
+    # Place compact labels next to their own nodes. The white background keeps
+    # them readable over the dense set of directed arcs.
+    for depot in depots:
+        x, y = positions[depot]
+        ax.annotate(
+            depot,
+            (x, y),
+            xytext=(6, 6),
+            textcoords="offset points",
+            fontsize=8,
+            ha="left",
+            va="bottom",
+            bbox=dict(facecolor="white", edgecolor="none", alpha=0.9, pad=0.6),
+            zorder=6,
+        )
 
-    ax.set_title(f"Directed MILP graph: {graph.number_of_nodes()} nodes and {graph.number_of_edges()} arcs")
+    for customer in customers:
+        data = graph.nodes[customer]
+        x, y = positions[customer]
+        dx, dy, horizontal, vertical = LABEL_POSITIONS[customer]
+        start, end = data["time_window"]
+        ax.annotate(
+            f"C{customer}  q={data['demand']}\nTW=[{start},{end}]",
+            (x, y),
+            xytext=(dx, dy),
+            textcoords="offset points",
+            fontsize=7,
+            ha=horizontal,
+            va=vertical,
+            bbox=dict(facecolor="white", edgecolor="none", alpha=0.9, pad=0.6),
+            zorder=6,
+        )
+
+    ax.set_title(
+        f"Aggregate directed MILP graph: "
+        f"{graph.number_of_nodes()} nodes and {graph.number_of_edges()} arcs"
+    )
     ax.set_xlabel("Longitude")
     ax.set_ylabel("Latitude")
     ax.margins(0.10)
@@ -251,13 +299,13 @@ def plot_road_routes(
             zorder=3,
         )
 
-        for leg in road_routes[vehicle]["legs"]:
-            leg_coordinates = route_coordinates(graph, leg["road_nodes"])
-            index = max(1, len(leg_coordinates) // 2)
+        for hop in road_routes[vehicle]["hops"]:
+            hop_coordinates = route_coordinates(graph, hop["road_nodes"])
+            index = max(1, len(hop_coordinates) // 2)
             ax.annotate(
                 "",
-                xy=leg_coordinates[index],
-                xytext=leg_coordinates[index - 1],
+                xy=hop_coordinates[index],
+                xytext=hop_coordinates[index - 1],
                 arrowprops=dict(
                     arrowstyle="-|>",
                     color=color,

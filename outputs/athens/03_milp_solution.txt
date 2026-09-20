@@ -14,7 +14,7 @@ Fixed cost: 67.0
 Distance cost: 29.115
 Time cost: 7.151
 Variable cost: 36.266
-Runtime (s): 67.718
+Runtime (s): 101.192
 
 ROUTES
 ------

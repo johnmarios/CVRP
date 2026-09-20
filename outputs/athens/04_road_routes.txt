@@ -8,7 +8,7 @@ Road nodes: 38
 Distance: 4.143 km
 Base travel time: 6.12 min
 Vehicle travel time: 5.21 min
-Legs:
+hops:
    D1 -> 12  |  2.077 km |   2.68 min |  18 road nodes
    12 -> D1  |  2.066 km |   2.53 min |  21 road nodes
 Service starts: C12 at t=2.7
@@ -20,7 +20,7 @@ Road nodes: 219
 Distance: 12.555 km
 Base travel time: 19.07 min
 Vehicle travel time: 22.89 min
-Legs:
+hops:
    D2 -> 1   |  3.904 km |   7.17 min |  62 road nodes
     1 -> 3   |  1.198 km |   1.77 min |  19 road nodes
     3 -> 4   |  1.763 km |   3.51 min |  39 road nodes
@@ -36,7 +36,7 @@ Road nodes: 168
 Distance: 12.896 km
 Base travel time: 21.59 min
 Vehicle travel time: 21.59 min
-Legs:
+hops:
    D1 -> 11  |  2.563 km |   4.69 min |  41 road nodes
    11 -> 10  |  1.432 km |   2.58 min |  15 road nodes
    10 -> 9   |  3.068 km |   4.71 min |  39 road nodes
@@ -50,7 +50,7 @@ Road nodes: 209
 Distance: 13.333 km
 Base travel time: 21.82 min
 Vehicle travel time: 21.82 min
-Legs:
+hops:
    D2 -> 2   |  4.901 km |   7.80 min |  70 road nodes
     2 -> 5   |  1.349 km |   2.27 min |  24 road nodes
     5 -> 8   |  1.931 km |   3.22 min |  32 road nodes

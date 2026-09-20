@@ -65,14 +65,17 @@ def main():
     loads = {vehicle: sum(scenario["customers"][customer]["demand"] for customer in route[1:-1]) for vehicle, route in routes.items()}
 
     # plot solved milp 
-    plot_solver_graph(
+    plot_solution(
         scenario,
         variables,
         vehicle_types,
         OUTPUT_DIRECTORY / "03_milp_solution.png",
         show=False,
+        show_time_windows=True,
         service_times=service_times,
         label_positions=LABEL_POSITIONS,
+        label_font_size=7.5,
+        figure_size=(11, 8.5),
     )
 
     # find real road routes for each vehicle 
