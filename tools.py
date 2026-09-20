@@ -1,6 +1,7 @@
 from copy import deepcopy
 import json
 from pathlib import Path
+import time
 import pulp
 
 
@@ -49,6 +50,104 @@ def extract_route(vehicle, x, number_of_customers):
     raise RuntimeError(f"Invalid route for {vehicle}.")
 
 
+def extract_routes_and_loads(scenario, variables):
+    """Extract the route and carried load of every active vehicle."""
+    routes = {}
+    loads = {}
+
+    for vehicle in sorted(variables["z"]):
+        if pulp.value(variables["z"][vehicle]) < 0.5:
+            continue
+
+        routes[vehicle] = extract_route(
+            vehicle,
+            variables["x"],
+            len(scenario["customers"]),
+        )
+        loads[vehicle] = sum(
+            scenario["customers"][customer]["demand"]
+            for customer in scenario["customers"]
+            if pulp.value(variables["y"][customer, vehicle]) > 0.5
+        )
+
+    return routes, loads
+
+
+def calculate_route_costs(
+    scenario,
+    vehicle_types,
+    routes,
+    include_variable_cost=False,
+):
+    """Calculate distance, travel time and the route-cost components."""
+    from model import get_d_ij, get_t_ijk
+
+    fixed_cost = 0.0
+    distance_cost = 0.0
+    time_cost = 0.0
+    total_distance = 0.0
+    total_travel_time = 0.0
+
+    for vehicle, route in routes.items():
+        vehicle_type = vehicle.split("_")[0]
+        vehicle_data = vehicle_types[vehicle_type]
+        fixed_cost += vehicle_data["fixed_cost"]
+
+        for first, second in zip(route[:-1], route[1:]):
+            distance = get_d_ij(scenario, first, second)
+            travel_time = get_t_ijk(
+                scenario, vehicle_types, first, second, vehicle
+            )
+            total_distance += distance
+            total_travel_time += travel_time
+            distance_cost += vehicle_data["cost_per_distance"] * distance
+            time_cost += vehicle_data["cost_per_time"] * travel_time
+
+    costs = {
+        "fixed_cost": round(fixed_cost, 4),
+        "distance_cost": round(distance_cost, 4),
+        "time_cost": round(time_cost, 4),
+        "total_distance": round(total_distance, 4),
+        "total_travel_time": round(total_travel_time, 4),
+    }
+    if include_variable_cost:
+        costs["variable_cost"] = round(distance_cost + time_cost, 4)
+    return costs
+
+
+def solve_model(model):
+    """Solve a model with CBC and return its status and runtime."""
+    start = time.perf_counter()
+    model.solve(pulp.PULP_CBC_CMD(msg=False))
+    runtime = round(time.perf_counter() - start, 4)
+    return pulp.LpStatus[model.status], runtime
+
+
+def find_case(results, case_name):
+    """Return one result using its case name."""
+    return next(result for result in results if result["case"] == case_name)
+
+
+def get_vehicle_count(scenario, vehicle_type):
+    """Return the available number of vehicles of one type."""
+    return sum(scenario["vehicle_info"][vehicle_type]["depots"].values())
+
+
+def add_symmetry_breaking(model, variables, scenario):
+    """Activate identical vehicles at each depot in a fixed order."""
+    for vehicle_type, information in scenario["vehicle_info"].items():
+        for depot in information["depots"]:
+            prefix = f"{vehicle_type}_{depot}_"
+            vehicles = sorted(
+                vehicle
+                for vehicle in variables["z"]
+                if vehicle.startswith(prefix)
+            )
+
+            for first, second in zip(vehicles[:-1], vehicles[1:]):
+                model += variables["z"][first] >= variables["z"][second]
+
+
 def format_routes(routes):
     """Format the routes dictionary into a string representation."""
     if not routes:
@@ -95,6 +194,13 @@ def make_text_table(results, columns):
     lines.extend(format_row(row) for row in rows)
     lines.append(separator)
     return "\n".join(lines)
+
+
+def save_report(report_str, output_directory, file_name):
+    """Save one scenario report and return its path."""
+    report_file = Path(output_directory) / file_name
+    report_file.write_text(report_str, encoding="utf-8")
+    return report_file
 
 
 def save_text_report(results, columns, title, output_file):

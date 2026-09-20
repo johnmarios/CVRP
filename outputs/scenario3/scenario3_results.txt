@@ -20,23 +20,23 @@ TIME-WINDOW COMPARISON
 ROUTES AND SERVICE TIMES
 ------------------------
 No time windows:
-Routes: van_D0_1: D0 -> 3 -> 2 -> 1 -> D0; van_D0_2: D0 -> 6 -> 5 -> 4 -> D0
-Loads:  van_D0_1: 11; van_D0_2: 11
-van_D0_1: C3 at t=25.00 in [0,600.0], C2 at t=46.18 in [0,600.0], C1 at t=63.25 in [0,600.0]
-van_D0_2: C6 at t=25.00 in [0,600.0], C5 at t=46.18 in [0,600.0], C4 at t=63.25 in [0,600.0]
-
-Wide time windows:
 Routes: van_D0_1: D0 -> 6 -> 5 -> 4 -> D0; van_D0_2: D0 -> 1 -> 2 -> 3 -> D0
 Loads:  van_D0_1: 11; van_D0_2: 11
-van_D0_1: C6 at t=25.00 in [0,200], C5 at t=46.18 in [0,200], C4 at t=63.25 in [0,200]
-van_D0_2: C1 at t=22.36 in [0,200], C2 at t=39.43 in [0,200], C3 at t=60.61 in [0,200]
+van_D0_1: C6 at t=25.00 in [0,600.0], C5 at t=46.18 in [0,600.0], C4 at t=63.25 in [0,600.0]
+van_D0_2: C1 at t=22.36 in [0,600.0], C2 at t=39.43 in [0,600.0], C3 at t=60.61 in [0,600.0]
+
+Wide time windows:
+Routes: van_D0_1: D0 -> 3 -> 2 -> 1 -> D0; van_D0_2: D0 -> 6 -> 5 -> 4 -> D0
+Loads:  van_D0_1: 11; van_D0_2: 11
+van_D0_1: C3 at t=25.00 in [0,200], C2 at t=46.18 in [0,200], C1 at t=63.25 in [0,200]
+van_D0_2: C6 at t=25.00 in [0,200], C5 at t=46.18 in [0,200], C4 at t=63.25 in [0,200]
 
 Tight feasible:
-Routes: van_D0_1: D0 -> 3 -> 4 -> 5 -> D0; van_D0_2: D0 -> 1 -> 6 -> D0; van_D0_3: D0 -> 2 -> D0
-Loads:  van_D0_1: 10; van_D0_2: 8; van_D0_3: 4
+Routes: van_D0_1: D0 -> 3 -> 4 -> 5 -> D0; van_D0_2: D0 -> 2 -> D0; van_D0_3: D0 -> 1 -> 6 -> D0
+Loads:  van_D0_1: 10; van_D0_2: 4; van_D0_3: 8
 van_D0_1: C3 at t=25.00 in [20,35], C4 at t=81.10 in [80,160], C5 at t=98.17 in [80,160]
-van_D0_2: C1 at t=22.36 in [20,35], C6 at t=80.00 in [80,160]
-van_D0_3: C2 at t=29.15 in [20,35]
+van_D0_2: C2 at t=29.15 in [20,35]
+van_D0_3: C1 at t=22.36 in [20,35], C6 at t=80.00 in [80,160]
 
 TIGHT-FEASIBLE SCHEDULE
 -----------------------
@@ -46,7 +46,7 @@ TIGHT-FEASIBLE SCHEDULE
 | van_D0_1 | C3       | [20,35]  | 25.00   | 25.00     | 0.00    |
 | van_D0_1 | C4       | [80,160] | 81.10   | 81.10     | 0.00    |
 | van_D0_1 | C5       | [80,160] | 98.17   | 98.17     | 0.00    |
-| van_D0_2 | C1       | [20,35]  | 22.36   | 22.36     | 0.00    |
-| van_D0_2 | C6       | [80,160] | 78.46   | 80.00     | 1.54    |
-| van_D0_3 | C2       | [20,35]  | 29.15   | 29.15     | 0.00    |
+| van_D0_2 | C2       | [20,35]  | 29.15   | 29.15     | 0.00    |
+| van_D0_3 | C1       | [20,35]  | 22.36   | 22.36     | 0.00    |
+| van_D0_3 | C6       | [80,160] | 78.46   | 80.00     | 1.54    |
 +----------+----------+----------+---------+-----------+---------+

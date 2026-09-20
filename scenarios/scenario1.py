@@ -1,7 +1,6 @@
 from copy import deepcopy
 from pathlib import Path
 import sys
-import time
 
 import pulp
 
@@ -11,15 +10,20 @@ if str(PROJECT_DIRECTORY) not in sys.path:
     sys.path.insert(0, str(PROJECT_DIRECTORY))
 
 from diagnostics import capacity_precheck
-from model import build_model, get_d_ij, get_t_ijk
+from model import build_model
 from tools import (
-    extract_route,
+    add_symmetry_breaking,
+    calculate_route_costs,
+    extract_routes_and_loads,
     format_loads,
     format_routes,
     get_output_directory,
+    get_vehicle_count,
     lp_relaxation,
     make_text_table,
     readjson,
+    save_report,
+    solve_model,
 )
 from visualization import (
     plot_capacity_results,
@@ -47,11 +51,6 @@ def load_inputs():
 def get_demands(scenario):
     """Return the customer demands of a scenario."""
     return [customer["demand"] for customer in scenario["customers"].values()]
-
-
-def get_number_of_vans(scenario):
-    """Return the number of available vans."""
-    return sum(scenario["vehicle_info"]["van"]["depots"].values())
 
 
 def prepare_case(scenario, vehicle_types, capacity):
@@ -92,70 +91,6 @@ def create_result(capacity, demands, number_of_vans, check):
     }
 
 
-def add_symmetry_breaking(model, variables):
-    """Force identical vans to be activated in a fixed order, by adding constraints z_1 >= z_2 >= z_3 ..."""
-    vehicles = sorted(variables["z"])
-    for first, second in zip(vehicles[:-1], vehicles[1:]):
-        model += variables["z"][first] >= variables["z"][second]
-
-
-def solve_model(model):
-    """Solve a model with CBC and return its status and runtime."""
-    start = time.perf_counter()
-    model.solve(pulp.PULP_CBC_CMD(msg=False))
-    runtime = round(time.perf_counter() - start, 4)
-    status = pulp.LpStatus[model.status]
-    return status, runtime
-
-
-def extract_routes_and_loads(scenario, variables):
-    """Extract the route and carried load of every active vehicle."""
-    routes = {}
-    loads = {}
-
-    for vehicle in sorted(variables["z"]):
-        if pulp.value(variables["z"][vehicle]) < 0.5:
-            continue
-
-        routes[vehicle] = extract_route(vehicle, variables["x"], len(scenario["customers"]),)
-        loads[vehicle] = sum(scenario["customers"][customer]["demand"]
-            for customer in scenario["customers"]
-            if pulp.value(variables["y"][customer, vehicle]) > 0.5
-        )
-
-    return routes, loads
-
-
-def calculate_route_costs(scenario, vehicle_types, routes):
-    """Calculate distance, time and the three cost components."""
-    fixed_cost = 0.0
-    distance_cost = 0.0
-    time_cost = 0.0
-    total_distance = 0.0
-    total_travel_time = 0.0
-
-    for vehicle, route in routes.items():
-        vehicle_type = vehicle.split("_")[0]
-        vehicle_data = vehicle_types[vehicle_type]
-        fixed_cost += vehicle_data["fixed_cost"]
-
-        for first, second in zip(route[:-1], route[1:]):
-            distance = get_d_ij(scenario, first, second)
-            travel_time = get_t_ijk(scenario, vehicle_types, first, second, vehicle)
-            total_distance += distance
-            total_travel_time += travel_time
-            distance_cost += vehicle_data["cost_per_distance"] * distance
-            time_cost += vehicle_data["cost_per_time"] * travel_time
-
-    return {
-        "fixed_cost": round(fixed_cost, 4),
-        "distance_cost": round(distance_cost, 4),
-        "time_cost": round(time_cost, 4),
-        "total_distance": round(total_distance, 4),
-        "total_travel_time": round(total_travel_time, 4),
-    }
-
-
 def complete_result(result, model, scenario, vehicle_types, variables):
     """Add routes, loads and cost information to an optimal result."""
     routes, loads = extract_routes_and_loads(scenario, variables)
@@ -185,7 +120,7 @@ def solve_capacity(base_scenario, base_vehicle_types, capacity):
     # prepare scenario for the requested Q
     scenario, vehicle_types = prepare_case(base_scenario, base_vehicle_types, capacity)
     demands = get_demands(scenario)
-    number_of_vans = get_number_of_vans(scenario)
+    number_of_vans = get_vehicle_count(scenario, "van")
 
     # run some capacity checks for infeasibility before calling the solver
     check = capacity_precheck(demands, number_of_vans, capacity)
@@ -198,7 +133,7 @@ def solve_capacity(base_scenario, base_vehicle_types, capacity):
         return result
 
     model, variables = build_model(scenario, vehicle_types)
-    add_symmetry_breaking(model, variables)
+    add_symmetry_breaking(model, variables, scenario)
     result["status"], result["runtime_seconds"] = solve_model(model)
 
     if result["status"] == "Optimal":
@@ -286,9 +221,7 @@ def run_relaxation_experiment(baseline_scenario, concentrated_scenario, vehicle_
     for name, short_name, scenario, capacity, milp_result in cases:
         lp_result = lp_relaxation(scenario, vehicle_types, capacity)
         results.append(
-            create_relaxation_row(
-                name, short_name, milp_result, lp_result
-            )
+            create_relaxation_row(name, short_name, milp_result, lp_result)
         )
 
     return results
@@ -425,7 +358,11 @@ def build_report(
         "============================================================")
     sections = [
         title,
-        build_setup_section(baseline, concentrated, get_number_of_vans(baseline)),
+        build_setup_section(
+            baseline,
+            concentrated,
+            get_vehicle_count(baseline, "van"),
+        ),
         build_capacity_section(capacity_results),
         build_demand_section(demand_results),
         build_relaxation_section(relaxation_results),
@@ -435,13 +372,6 @@ def build_report(
 
 
 # outputs
-
-def save_report(report, output_directory):
-    """Save and return the path of the single text report."""
-    report_file = output_directory / "scenario1_results.txt"
-    report_file.write_text(report, encoding="utf-8")
-    return report_file
-
 
 def save_plots(
     baseline,
@@ -518,7 +448,9 @@ def main():
         demand_results,
         relaxation_results,
     )
-    report_file = save_report(report, output_directory)
+    report_file = save_report(
+        report, output_directory, "scenario1_results.txt"
+    )
 
     # save the capacity, demand-distribution and LP-relaxation plots
     capacity_plot, demand_plot, relaxation_plot = save_plots(

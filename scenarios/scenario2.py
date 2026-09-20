@@ -1,7 +1,6 @@
 from copy import deepcopy
 from pathlib import Path
 import sys
-import time
 
 import pulp
 
@@ -10,8 +9,20 @@ PROJECT_DIRECTORY = Path(__file__).resolve().parents[1]
 if str(PROJECT_DIRECTORY) not in sys.path:
     sys.path.insert(0, str(PROJECT_DIRECTORY))
 
-from model import build_model, get_d_ij, get_t_ijk
-from tools import extract_route, format_loads, format_routes, get_output_directory, make_text_table, readjson
+from model import build_model
+from tools import (
+    add_symmetry_breaking,
+    calculate_route_costs,
+    extract_routes_and_loads,
+    find_case,
+    format_loads,
+    format_routes,
+    get_output_directory,
+    make_text_table,
+    readjson,
+    save_report,
+    solve_model,
+)
 from visualization import (
     plot_solution,
     plot_truck_cost_sensitivity,
@@ -62,27 +73,6 @@ def fleet_text(counts):
 
 
 # solve one fleet case and extract the results
-def add_symmetry_breaking(model, variables, scenario):
-    """Activate identical vehicles of each type in a fixed order, by adding constraints 
-    of the form z_1 >= z_2 >= z_3 ..."""
-    for vehicle_type in scenario["vehicle_info"]:
-        vehicles = sorted(
-            vehicle
-            for vehicle in variables["z"]
-            if vehicle.startswith(f"{vehicle_type}_")
-        )
-        for first, second in zip(vehicles[:-1], vehicles[1:]):
-            model += variables["z"][first] >= variables["z"][second]
-
-
-def solve_model(model):
-    """Solve a model with CBC and return status and runtime."""
-    start = time.perf_counter()
-    model.solve(pulp.PULP_CBC_CMD(msg=False))
-    runtime = round(time.perf_counter() - start, 4)
-    return pulp.LpStatus[model.status], runtime
-
-
 def create_result(case_name, scenario, vehicle_types):
     """Create an empty result containing the common case information."""
     # available vehicles, capacity and total demand
@@ -116,29 +106,6 @@ def create_result(case_name, scenario, vehicle_types):
     }
 
 
-def extract_routes_and_loads(scenario, variables):
-    """Extract the route and load of every active vehicle."""
-    routes = {}
-    loads = {}
-
-    for vehicle in sorted(variables["z"]):
-        if pulp.value(variables["z"][vehicle]) < 0.5:
-            continue
-
-        routes[vehicle] = extract_route(
-            vehicle,
-            variables["x"],
-            len(scenario["customers"]),
-        )
-        loads[vehicle] = sum(
-            scenario["customers"][customer]["demand"]
-            for customer in scenario["customers"]
-            if pulp.value(variables["y"][customer, vehicle]) > 0.5
-        )
-
-    return routes, loads
-
-
 def count_active_vehicle_types(routes, vehicle_types):
     """Count how many active vehicles belong to each type."""
     counts = {vehicle_type: 0 for vehicle_type in vehicle_types}
@@ -147,44 +114,16 @@ def count_active_vehicle_types(routes, vehicle_types):
     return counts
 
 
-def calculate_route_costs(scenario, vehicle_types, routes):
-    """Calculate distance, time and all objective components."""
-    fixed_cost = 0.0
-    distance_cost = 0.0
-    time_cost = 0.0
-    total_distance = 0.0
-    total_travel_time = 0.0
-
-    for vehicle, route in routes.items():
-        vehicle_type = vehicle.split("_")[0]
-        vehicle_data = vehicle_types[vehicle_type]
-        fixed_cost += vehicle_data["fixed_cost"]
-
-        for first, second in zip(route[:-1], route[1:]):
-            distance = get_d_ij(scenario, first, second)
-            travel_time = get_t_ijk(
-                scenario, vehicle_types, first, second, vehicle
-            )
-            total_distance += distance
-            total_travel_time += travel_time
-            distance_cost += vehicle_data["cost_per_distance"] * distance
-            time_cost += vehicle_data["cost_per_time"] * travel_time
-
-    return {
-        "fixed_cost": round(fixed_cost, 4),
-        "distance_cost": round(distance_cost, 4),
-        "time_cost": round(time_cost, 4),
-        "variable_cost": round(distance_cost + time_cost, 4),
-        "total_distance": round(total_distance, 4),
-        "total_travel_time": round(total_travel_time, 4),
-    }
-
-
 def complete_result(result, model, scenario, vehicle_types, variables):
     """Add the selected fleet, routes and costs to an optimal result."""
     routes, loads = extract_routes_and_loads(scenario, variables)
     active_counts = count_active_vehicle_types(routes, vehicle_types)
-    costs = calculate_route_costs(scenario, vehicle_types, routes)
+    costs = calculate_route_costs(
+        scenario,
+        vehicle_types,
+        routes,
+        include_variable_cost=True,
+    )
     active_capacity = sum(
         vehicle_types[vehicle.split("_")[0]]["capacity"]
         for vehicle in routes
@@ -196,9 +135,7 @@ def complete_result(result, model, scenario, vehicle_types, variables):
             "selected_fleet": fleet_text(active_counts),
             "active_vehicles": len(routes),
             "active_capacity": active_capacity,
-            "utilization_percent": round(
-                100 * result["total_demand"] / active_capacity, 2
-            ),
+            "utilization_percent": round(100 * result["total_demand"] / active_capacity, 2),
             "objective": round(pulp.value(model.objective), 4),
             "routes": routes,
             "loads": loads,
@@ -220,10 +157,7 @@ def solve_fleet_case(case_name, scenario, vehicle_types):
     return result, variables
 
 
-# -----------------------------------------------------------------------------
-# 3. FLEET COMPARISON
-# -----------------------------------------------------------------------------
-
+# fleet comparison 
 def run_fleet_comparison(scenarios, vehicle_types):
     """Solve all four controlled fleet cases."""
     results = []
@@ -243,11 +177,6 @@ def run_fleet_comparison(scenarios, vehicle_types):
         )
 
     return results, solved_cases
-
-
-def find_case(results, case_name):
-    """Return one result using its case name."""
-    return next(result for result in results if result["case"] == case_name)
 
 
 # -----------------------------------------------------------------------------
@@ -526,13 +455,6 @@ def build_report(base_scenario, vehicle_types, fleet_results, sensitivity):
 # 6. OUTPUTS
 # -----------------------------------------------------------------------------
 
-def save_report(report, output_directory):
-    """Save and return the path of the single text report."""
-    report_file = output_directory / "scenario2_results.txt"
-    report_file.write_text(report, encoding="utf-8")
-    return report_file
-
-
 def save_sensitivity_plot(sensitivity, output_directory, show_plots):
     """Save the truck-cost sensitivity plot."""
     sensitivity_plot = output_directory / "truck_cost_sensitivity.png"
@@ -597,7 +519,9 @@ def main():
         fleet_results,
         sensitivity,
     )
-    report_file = save_report(report, output_directory)
+    report_file = save_report(
+        report, output_directory, "scenario2_results.txt"
+    )
     sensitivity_plot = save_sensitivity_plot(
         sensitivity,
         output_directory,

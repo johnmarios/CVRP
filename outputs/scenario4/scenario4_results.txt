@@ -26,19 +26,19 @@ Loads:  van_D0_1: 11; van_D0_2: 11
 D0: vehicles=2, demand=22, distance=26.245, customers=C3,C2,C1,C6,C5,C4
 
 Two local depots:
+Routes: van_D1_1: D1 -> 3 -> 2 -> 1 -> D1; van_D2_1: D2 -> 4 -> 5 -> 6 -> D2
+Loads:  van_D1_1: 11; van_D2_1: 11
+D1: vehicles=1, demand=11, distance=5.939, customers=C3,C2,C1
+D2: vehicles=1, demand=11, distance=5.939, customers=C4,C5,C6
+
+Imbalanced depots:
+Routes: van_D1_1: D1 -> 6 -> 5 -> 4 -> D1; van_D1_2: D1 -> 1 -> 2 -> 3 -> D1
+Loads:  van_D1_1: 11; van_D1_2: 11
+D1: vehicles=2, demand=22, distance=27.528, customers=C6,C5,C4,C1,C2,C3
+D2: vehicles=0, demand=0, distance=0.000, customers=-
+
+Free depot choice:
 Routes: van_D1_1: D1 -> 1 -> 2 -> 3 -> D1; van_D2_1: D2 -> 4 -> 5 -> 6 -> D2
 Loads:  van_D1_1: 11; van_D2_1: 11
 D1: vehicles=1, demand=11, distance=5.939, customers=C1,C2,C3
 D2: vehicles=1, demand=11, distance=5.939, customers=C4,C5,C6
-
-Imbalanced depots:
-Routes: van_D1_1: D1 -> 4 -> 5 -> 6 -> D1; van_D1_2: D1 -> 1 -> 2 -> 3 -> D1
-Loads:  van_D1_1: 11; van_D1_2: 11
-D1: vehicles=2, demand=22, distance=27.528, customers=C4,C5,C6,C1,C2,C3
-D2: vehicles=0, demand=0, distance=0.000, customers=-
-
-Free depot choice:
-Routes: van_D1_1: D1 -> 1 -> 2 -> 3 -> D1; van_D2_1: D2 -> 6 -> 5 -> 4 -> D2
-Loads:  van_D1_1: 11; van_D2_1: 11
-D1: vehicles=1, demand=11, distance=5.939, customers=C1,C2,C3
-D2: vehicles=1, demand=11, distance=5.939, customers=C6,C5,C4

@@ -1,7 +1,6 @@
 import math
 from pathlib import Path
 import sys
-import time
 
 import pulp
 
@@ -10,8 +9,21 @@ PROJECT_DIRECTORY = Path(__file__).resolve().parents[1]
 if str(PROJECT_DIRECTORY) not in sys.path:
     sys.path.insert(0, str(PROJECT_DIRECTORY))
 
-from model import build_model, get_d_ij, get_t_ijk
-from tools import extract_route, format_loads, format_routes, get_output_directory, make_text_table, readjson
+from model import build_model, get_t_ijk
+from tools import (
+    add_symmetry_breaking,
+    calculate_route_costs,
+    extract_routes_and_loads,
+    find_case,
+    format_loads,
+    format_routes,
+    get_output_directory,
+    get_vehicle_count,
+    make_text_table,
+    readjson,
+    save_report,
+    solve_model,
+)
 from visualization import plot_solution, plot_time_window_results
 
 
@@ -36,29 +48,9 @@ def load_inputs():
     return scenarios, vehicle_types
 
 
-def get_number_of_vans(scenario):
-    """Return the number of vans available in the scenario."""
-    return sum(scenario["vehicle_info"]["van"]["depots"].values())
-
-
 # -----------------------------------------------------------------------------
 # 2. SOLVE ONE TIME-WINDOW CASE
 # -----------------------------------------------------------------------------
-
-def add_symmetry_breaking(model, variables):
-    """Activate identical vans in a fixed order."""
-    vehicles = sorted(variables["z"])
-    for first, second in zip(vehicles[:-1], vehicles[1:]):
-        model += variables["z"][first] >= variables["z"][second]
-
-
-def solve_model(model):
-    """Solve a model with CBC and return status and runtime."""
-    start = time.perf_counter()
-    model.solve(pulp.PULP_CBC_CMD(msg=False))
-    runtime = round(time.perf_counter() - start, 4)
-    return pulp.LpStatus[model.status], runtime
-
 
 def create_result(case_name, scenario, vehicle_types):
     """Create an empty result containing the analytical lower bounds."""
@@ -67,7 +59,7 @@ def create_result(case_name, scenario, vehicle_types):
     )
     capacity = vehicle_types["van"]["capacity"]
     temporal_lower_bound = scenario["temporal_lower_bound"]
-    available_vans = get_number_of_vans(scenario)
+    available_vans = get_vehicle_count(scenario, "van")
 
     return {
         "case": case_name,
@@ -133,64 +125,18 @@ def build_earliest_schedule(scenario, vehicle, route, vehicle_types):
 
 def extract_routes_loads_and_schedules(scenario, vehicle_types, variables):
     """Extract routes, loads and deterministic service schedules."""
-    routes = {}
-    loads = {}
+    routes, loads = extract_routes_and_loads(scenario, variables)
     schedule_rows = []
     return_times = []
 
-    for vehicle in sorted(variables["z"]):
-        if pulp.value(variables["z"][vehicle]) < 0.5:
-            continue
-
-        route = extract_route(
-            vehicle, variables["x"], len(scenario["customers"])
-        )
-        load = sum(
-            scenario["customers"][customer]["demand"]
-            for customer in scenario["customers"]
-            if pulp.value(variables["y"][customer, vehicle]) > 0.5
-        )
+    for vehicle, route in routes.items():
         vehicle_schedule, return_time = build_earliest_schedule(
             scenario, vehicle, route, vehicle_types
         )
-        routes[vehicle] = route
-        loads[vehicle] = load
         schedule_rows.extend(vehicle_schedule)
         return_times.append(return_time)
 
     return routes, loads, schedule_rows, return_times
-
-
-def calculate_route_costs(scenario, vehicle_types, routes):
-    """Calculate the objective components of the selected routes."""
-    fixed_cost = 0.0
-    distance_cost = 0.0
-    time_cost = 0.0
-    total_distance = 0.0
-    total_travel_time = 0.0
-
-    for vehicle, route in routes.items():
-        vehicle_type = vehicle.split("_")[0]
-        vehicle_data = vehicle_types[vehicle_type]
-        fixed_cost += vehicle_data["fixed_cost"]
-
-        for first, second in zip(route[:-1], route[1:]):
-            distance = get_d_ij(scenario, first, second)
-            travel_time = get_t_ijk(
-                scenario, vehicle_types, first, second, vehicle
-            )
-            total_distance += distance
-            total_travel_time += travel_time
-            distance_cost += vehicle_data["cost_per_distance"] * distance
-            time_cost += vehicle_data["cost_per_time"] * travel_time
-
-    return {
-        "fixed_cost": round(fixed_cost, 4),
-        "distance_cost": round(distance_cost, 4),
-        "time_cost": round(time_cost, 4),
-        "total_distance": round(total_distance, 4),
-        "total_travel_time": round(total_travel_time, 4),
-    }
 
 
 def complete_result(result, model, scenario, vehicle_types, variables):
@@ -229,7 +175,7 @@ def complete_result(result, model, scenario, vehicle_types, variables):
 def solve_time_window_case(case_name, scenario, vehicle_types):
     """Build, solve and summarize one time-window case."""
     model, variables = build_model(scenario, vehicle_types)
-    add_symmetry_breaking(model, variables)
+    add_symmetry_breaking(model, variables, scenario)
     result = create_result(case_name, scenario, vehicle_types)
     result["status"], result["runtime_seconds"] = solve_model(model)
     schedule_rows = []
@@ -264,11 +210,6 @@ def run_time_window_experiment(scenarios, vehicle_types):
         )
 
     return results, solved_cases
-
-
-def find_case(results, case_name):
-    """Return one result using its case name."""
-    return next(result for result in results if result["case"] == case_name)
 
 
 # -----------------------------------------------------------------------------
@@ -376,13 +317,6 @@ def build_report(results, solved_cases):
 # 5. OUTPUTS
 # -----------------------------------------------------------------------------
 
-def save_report(report, output_directory):
-    """Save and return the scenario report path."""
-    report_file = output_directory / "scenario3_results.txt"
-    report_file.write_text(report, encoding="utf-8")
-    return report_file
-
-
 def save_summary_plots(results, solved_cases, vehicle_types, output_directory, show):
     """Save the comparison and route figures."""
     comparison_file = output_directory / "time_window_comparison.png"
@@ -428,7 +362,9 @@ def main():
         scenarios, vehicle_types
     )
     report = build_report(results, solved_cases)
-    report_file = save_report(report, output_directory)
+    report_file = save_report(
+        report, output_directory, "scenario3_results.txt"
+    )
     comparison_file, route_files = save_summary_plots(
         results,
         solved_cases,
