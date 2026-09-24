@@ -17,6 +17,7 @@ from tools import (
     extract_routes_and_loads,
     format_loads,
     format_routes,
+    get_active_capacity,
     get_output_directory,
     get_vehicle_count,
     lp_relaxation,
@@ -95,7 +96,7 @@ def complete_result(result, model, scenario, vehicle_types, variables):
     """Add routes, loads and cost information to an optimal result."""
     routes, loads = extract_routes_and_loads(scenario, variables)
     costs = calculate_route_costs(scenario, vehicle_types, routes)
-    active_capacity = sum(vehicle_types[vehicle.split("_")[0]]["capacity"] for vehicle in routes)
+    active_capacity = get_active_capacity(routes, vehicle_types)
 
     objective = pulp.value(model.objective)
     util_percent = int(100 * result["total_demand"] / active_capacity)
@@ -182,11 +183,10 @@ def calculate_lp_gap(milp_result, lp_result):
     return round(100 * (milp_result["objective"] - lp_result["objective"]) / milp_result["objective"], 2,)
 
 
-def create_relaxation_row(name, short_name, milp_result, lp_result):
+def create_relaxation_row(name, milp_result, lp_result):
     """Combine the MILP and LP results of one case in one table row."""
     return {
         "case": name,
-        "short_name": short_name,
         "milp_status": milp_result["status"],
         "milp_objective": milp_result["objective"],
         "lp_status": lp_result["status"],
@@ -204,24 +204,24 @@ def run_relaxation_experiment(baseline_scenario, concentrated_scenario, vehicle_
     """Compare three MILP cases with their matching LP relaxations."""
     cases = [
         (
-            "Baseline Q=11", "Baseline\nQ=11", baseline_scenario, 11,
+            "Baseline Q=11", baseline_scenario, 11,
             find_capacity_result(capacity_results, 11),
         ),
         (
-            "Baseline Q=12", "Baseline\nQ=12", baseline_scenario, 12,
+            "Baseline Q=12", baseline_scenario, 12,
             find_capacity_result(capacity_results, 12),
         ),
         (
-            "Concentrated Q=11", "Concentrated\nQ=11",
-            concentrated_scenario, 11, concentrated_result,
+            "Concentrated Q=11", concentrated_scenario, 11,
+            concentrated_result,
         ),
     ]
 
     results = []
-    for name, short_name, scenario, capacity, milp_result in cases:
+    for name, scenario, capacity, milp_result in cases:
         lp_result = lp_relaxation(scenario, vehicle_types, capacity)
         results.append(
-            create_relaxation_row(name, short_name, milp_result, lp_result)
+            create_relaxation_row(name, milp_result, lp_result)
         )
 
     return results

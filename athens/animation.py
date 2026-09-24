@@ -19,14 +19,19 @@ from .visualization import (
 
 def timed_road_points(graph, road_nodes, vehicle_factor, duration):
     """Return road coordinates with elapsed travel time at each point."""
-    coordinates = [node_position(graph, road_nodes[0])]
+    # get the position of the first node in the road_nodes list and add it to the coordinates list
+    coordinates = [node_position(graph, road_nodes[0])] 
     elapsed_times = [0.0]
     elapsed = 0.0
 
     for first, second in zip(road_nodes[:-1], road_nodes[1:]):
+        # for every pair of nodes in the road_nodes list, get the edge coordinates and the shortest parallel edge
+        # get all the coordinates of the edge between the two nodes and add them to the coordinates list
         points = edge_coordinates(graph, first, second)
         edge = get_shortest_parallel_edge(graph, first, second)
+        # calculate the travel time for the edge based on the vehicle factor and convert it to minutes
         edge_time = float(edge["travel_time"]) * vehicle_factor / 60
+        # calculate the lengths of each segment between the points and the total length of the edge
         lengths = [
             math.hypot(b[0] - a[0], b[1] - a[1])
             for a, b in zip(points[:-1], points[1:])
@@ -42,6 +47,7 @@ def timed_road_points(graph, road_nodes, vehicle_factor, duration):
             elapsed_times.append(elapsed)
 
     if elapsed_times[-1] > 0:
+        # scale the elapsed times to fit within the specified duration
         scale = duration / elapsed_times[-1]
         elapsed_times = [value * scale for value in elapsed_times]
 

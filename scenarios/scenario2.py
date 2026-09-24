@@ -13,11 +13,15 @@ from model import build_model
 from tools import (
     add_symmetry_breaking,
     calculate_route_costs,
+    count_active_vehicle_types,
     extract_routes_and_loads,
     find_case,
     format_loads,
     format_routes,
+    get_active_capacity,
+    get_fleet_counts,
     get_output_directory,
+    get_total_demand,
     make_text_table,
     readjson,
     save_report,
@@ -54,14 +58,6 @@ def load_inputs():
     return scenarios, vehicle_types
 
 
-def get_fleet_counts(scenario):
-    """Return the number of available vehicles of each type."""
-    return {
-        vehicle_type: sum(information["depots"].values())
-        for vehicle_type, information in scenario["vehicle_info"].items()
-    }
-
-
 def fleet_text(counts):
     """Convert vehicle counts to a short readable description, vehicle_type=count."""
     selected = [
@@ -81,7 +77,7 @@ def create_result(case_name, scenario, vehicle_types):
         count * vehicle_types[vehicle_type]["capacity"]
         for vehicle_type, count in available_counts.items()
     )
-    total_demand = sum(customer["demand"] for customer in scenario["customers"].values())
+    total_demand = get_total_demand(scenario)
 
     return {
         "case": case_name,
@@ -106,14 +102,6 @@ def create_result(case_name, scenario, vehicle_types):
     }
 
 
-def count_active_vehicle_types(routes, vehicle_types):
-    """Count how many active vehicles belong to each type."""
-    counts = {vehicle_type: 0 for vehicle_type in vehicle_types}
-    for vehicle in routes:
-        counts[vehicle.split("_")[0]] += 1
-    return counts
-
-
 def complete_result(result, model, scenario, vehicle_types, variables):
     """Add the selected fleet, routes and costs to an optimal result."""
     routes, loads = extract_routes_and_loads(scenario, variables)
@@ -124,10 +112,7 @@ def complete_result(result, model, scenario, vehicle_types, variables):
         routes,
         include_variable_cost=True,
     )
-    active_capacity = sum(
-        vehicle_types[vehicle.split("_")[0]]["capacity"]
-        for vehicle in routes
-    )
+    active_capacity = get_active_capacity(routes, vehicle_types)
 
     result.update(costs)
     result.update(

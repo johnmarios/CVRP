@@ -17,7 +17,9 @@ from tools import (
     find_case,
     format_loads,
     format_routes,
+    get_active_capacity,
     get_output_directory,
+    get_total_demand,
     get_vehicle_count,
     make_text_table,
     readjson,
@@ -54,9 +56,7 @@ def load_inputs():
 
 def create_result(case_name, scenario, vehicle_types):
     """Create an empty result containing the analytical lower bounds."""
-    total_demand = sum(
-        customer["demand"] for customer in scenario["customers"].values()
-    )
+    total_demand = get_total_demand(scenario)
     capacity = vehicle_types["van"]["capacity"]
     temporal_lower_bound = scenario["temporal_lower_bound"]
     available_vans = get_vehicle_count(scenario, "van")
@@ -147,18 +147,16 @@ def complete_result(result, model, scenario, vehicle_types, variables):
         )
     )
     costs = calculate_route_costs(scenario, vehicle_types, routes)
-    capacity = vehicle_types["van"]["capacity"]
-    total_demand = sum(
-        customer["demand"] for customer in scenario["customers"].values()
-    )
+    total_demand = get_total_demand(scenario)
+    active_capacity = get_active_capacity(routes, vehicle_types)
 
     result.update(costs)
     result.update(
         {
             "active_vehicles": len(routes),
-            "active_capacity": len(routes) * capacity,
+            "active_capacity": active_capacity,
             "utilization_percent": round(
-                100 * total_demand / (len(routes) * capacity), 2
+                100 * total_demand / active_capacity, 2
             ),
             "maximum_route_time": round(max(return_times), 2),
             "total_waiting_time": round(

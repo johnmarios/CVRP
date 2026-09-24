@@ -33,7 +33,7 @@ Routes: van_D0_1: D0 -> 3 -> 2 -> 1 -> D0; van_D0_2: D0 -> 6 -> 5 -> 4 -> D0
 Loads:  van_D0_1: 11; van_D0_2: 11
 
 One truck:
-Routes: truck_D0_1: D0 -> 3 -> 2 -> 1 -> 6 -> 5 -> 4 -> D0
+Routes: truck_D0_1: D0 -> 6 -> 5 -> 4 -> 3 -> 2 -> 1 -> D0
 Loads:  truck_D0_1: 22
 
 Mixed fleet:
@@ -41,7 +41,7 @@ Routes: motorcycle_D0_1: D0 -> 6 -> D0; motorcycle_D0_2: D0 -> 5 -> D0; motorcyc
 Loads:  motorcycle_D0_1: 4; motorcycle_D0_2: 3; motorcycle_D0_3: 4; van_D0_1: 11
 
 Free choice:
-Routes: van_D0_1: D0 -> 4 -> 5 -> 6 -> D0; van_D0_2: D0 -> 3 -> 2 -> 1 -> D0
+Routes: van_D0_1: D0 -> 3 -> 2 -> 1 -> D0; van_D0_2: D0 -> 6 -> 5 -> 4 -> D0
 Loads:  van_D0_1: 11; van_D0_2: 11
 
 B. TRUCK COST SENSITIVITY

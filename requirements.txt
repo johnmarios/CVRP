@@ -1,0 +1,6 @@
+pulp>=2.8,<4
+matplotlib>=3.8,<4
+osmnx>=2.0,<3
+networkx>=3.2,<4
+Pillow>=10
+pyproj>=3.7,<3.8

@@ -131,10 +131,7 @@ def solve_athens_model(scenario, vehicle_types, output_file):
         "utilization_percent": round(100 * total_demand / active_capacity, 2),
         "total_distance": round(total_distance, 3),
         "total_travel_time": round(total_travel_time, 3),
-        "maximum_route_time": round(
-            max(schedule["finish_time"] for schedule in schedules.values()),
-            3,
-        ),
+        "maximum_route_time": round(max(schedule["finish_time"] for schedule in schedules.values()), 3,),
         "fixed_cost": round(fixed_cost, 3),
         "distance_cost": round(distance_cost, 3),
         "time_cost": round(time_cost, 3),

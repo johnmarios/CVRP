@@ -54,11 +54,13 @@ def node_position(graph, node):
 def edge_coordinates(graph, first_node, second_node):
     """Return the directed geometry of one road edge."""
     edge = get_shortest_parallel_edge(graph, first_node, second_node)
+    # if the edge has no geometry, return the coordinates of the two nodes
     geometry = edge.get("geometry")
 
     if geometry is None:
         return [node_position(graph, first_node), node_position(graph, second_node)]
 
+    # if the edge has a geometry, return its coordinates in the correct direction
     coordinates = list(geometry.coords)
     start = node_position(graph, first_node)
     distance_to_first = (

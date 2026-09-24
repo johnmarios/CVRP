@@ -21,7 +21,7 @@ def plot_solution(
     figure_size=(9, 7),
 ):
     """Plot the optimized directed vehicle routes."""
-    fig, ax = plt.subplots(figsize=figure_size)
+    fig, ax = plt.subplots(figsize=figure_size) 
 
     default_label_positions = {
         "1": (-10, 8, "right", "bottom"),

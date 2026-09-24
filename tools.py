@@ -128,9 +128,40 @@ def find_case(results, case_name):
     return next(result for result in results if result["case"] == case_name)
 
 
+def get_total_demand(scenario):
+    """Return the sum of all customer demands."""
+    return sum(
+        customer["demand"] for customer in scenario["customers"].values()
+    )
+
+
+def get_fleet_counts(scenario):
+    """Return the available number of vehicles of every type."""
+    return {
+        vehicle_type: sum(information["depots"].values())
+        for vehicle_type, information in scenario["vehicle_info"].items()
+    }
+
+
 def get_vehicle_count(scenario, vehicle_type):
     """Return the available number of vehicles of one type."""
-    return sum(scenario["vehicle_info"][vehicle_type]["depots"].values())
+    return get_fleet_counts(scenario).get(vehicle_type, 0)
+
+
+def count_active_vehicle_types(routes, vehicle_types):
+    """Count the active vehicles of every type."""
+    counts = {vehicle_type: 0 for vehicle_type in vehicle_types}
+    for vehicle in routes:
+        counts[vehicle.split("_")[0]] += 1
+    return counts
+
+
+def get_active_capacity(routes, vehicle_types):
+    """Return the total capacity of the active vehicles."""
+    return sum(
+        vehicle_types[vehicle.split("_")[0]]["capacity"]
+        for vehicle in routes
+    )
 
 
 def add_symmetry_breaking(model, variables, scenario):

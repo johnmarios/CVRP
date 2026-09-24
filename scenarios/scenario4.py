@@ -17,7 +17,9 @@ from tools import (
     find_case,
     format_loads,
     format_routes,
+    get_active_capacity,
     get_output_directory,
+    get_total_demand,
     make_text_table,
     readjson,
     save_report,
@@ -34,10 +36,8 @@ DEPOT_CASES = {
 }
 
 
-# -----------------------------------------------------------------------------
-# 1. INPUT DATA
-# -----------------------------------------------------------------------------
 
+# input data
 def load_inputs():
     """Load the four depot scenarios and the vehicle parameters."""
     scenarios = {
@@ -58,15 +58,11 @@ def available_fleet_text(scenario):
     return ", ".join(parts)
 
 
-# -----------------------------------------------------------------------------
-# 2. SOLVE ONE DEPOT CASE
-# -----------------------------------------------------------------------------
 
+# solve one depot case 
 def create_result(case_name, scenario, vehicle_types):
     """Create an empty result containing the common depot-case data."""
-    total_demand = sum(
-        customer["demand"] for customer in scenario["customers"].values()
-    )
+    total_demand = get_total_demand(scenario)
     capacity = vehicle_types["van"]["capacity"]
     return {
         "case": case_name,
@@ -133,13 +129,8 @@ def complete_result(result, model, scenario, vehicle_types, variables):
     routes, loads = extract_routes_and_loads(scenario, variables)
     costs = calculate_route_costs(scenario, vehicle_types, routes)
     depot_summary = build_depot_summary(scenario, routes, loads)
-    total_demand = sum(
-        customer["demand"] for customer in scenario["customers"].values()
-    )
-    active_capacity = sum(
-        vehicle_types[vehicle.split("_")[0]]["capacity"]
-        for vehicle in routes
-    )
+    total_demand = get_total_demand(scenario)
+    active_capacity = get_active_capacity(routes, vehicle_types)
 
     result.update(costs)
     result.update(
@@ -147,9 +138,7 @@ def complete_result(result, model, scenario, vehicle_types, variables):
             "selected_fleet": selected_fleet_text(depot_summary),
             "active_vehicles": len(routes),
             "active_capacity": active_capacity,
-            "utilization_percent": round(
-                100 * total_demand / active_capacity, 2
-            ),
+            "utilization_percent": round(100 * total_demand / active_capacity, 2),
             "objective": round(pulp.value(model.objective), 4),
             "routes": routes,
             "loads": loads,
@@ -171,10 +160,8 @@ def solve_depot_case(case_name, scenario, vehicle_types):
     return result, variables
 
 
-# -----------------------------------------------------------------------------
-# 3. DEPOT EXPERIMENT
-# -----------------------------------------------------------------------------
 
+# depot experiment
 def run_depot_experiment(scenarios, vehicle_types):
     """Solve the four depot-location cases."""
     results = []
@@ -195,10 +182,7 @@ def run_depot_experiment(scenarios, vehicle_types):
     return results, solved_cases
 
 
-# -----------------------------------------------------------------------------
-# 4. TEXT REPORT
-# -----------------------------------------------------------------------------
-
+# text report 
 def format_depot_summary(summary):
     """Format the depot allocation of one solution."""
     lines = []
@@ -261,10 +245,7 @@ def build_report(results):
     return report_str
 
 
-# -----------------------------------------------------------------------------
-# 5. OUTPUTS
-# -----------------------------------------------------------------------------
-
+# outputs
 def save_route_plots(solved_cases, vehicle_types, output_directory, show):
     """Save the route plot of each depot case."""
     route_files = {}
@@ -288,10 +269,7 @@ def save_route_plots(solved_cases, vehicle_types, output_directory, show):
     return route_files
 
 
-# -----------------------------------------------------------------------------
-# 6. MAIN WORKFLOW
-# -----------------------------------------------------------------------------
-
+# main workflow 
 def main():
     """Run Scenario 4 and save its presentation-ready outputs."""
     show_plots = "--show" in sys.argv
