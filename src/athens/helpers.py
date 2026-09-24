@@ -167,7 +167,7 @@ def build_road_routes(routes, schedules, shortest_paths, distance_matrix, travel
         for schedule_hop in schedules[vehicle]["hops"]:
             origin = schedule_hop["origin"]
             destination = schedule_hop["destination"]
-            # shortest paths store all rode nodes between the two MILP nodes, including the origin and destination
+            # shortest paths store all road nodes between the two MILP nodes, including the origin and destination
             hop_nodes = shortest_paths[origin][destination]
             # exclude the first node of every hop except the first hop, to avoid duplicates
             road_nodes.extend(hop_nodes if not road_nodes else hop_nodes[1:])

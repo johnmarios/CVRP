@@ -24,9 +24,6 @@ def get_C(scenario: dict):
     """Set of customers."""
     return set(scenario["customers"].keys())
 
-# def N(scenario: dict):
-#     """Set of all nodes (customers and depots)."""
-#     return C(scenario).union(D(scenario))
 
 def get_D(scenario: dict):
     """Set of depots."""
